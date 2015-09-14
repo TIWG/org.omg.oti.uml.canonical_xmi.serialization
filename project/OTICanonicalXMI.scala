@@ -27,10 +27,6 @@ object OTICanonicalXMI extends Build {
     organizationHomepage := Some(url("http://solitaire.omg.org/browse/TIWG")),
 
     EclipseKeys.executionEnvironment := Some(EclipseExecutionEnvironment.JavaSE17),
-    EclipseKeys.classpathTransformerFactories ++= Seq(transformNode("classpath", exportClasspathLibraries)),
-    // must relativize the managed classpath so that it can be included in the plugin manifest!
-    retrieveManaged := true,
-    EclipseKeys.relativizeLibs := true,
 
     // include repositories used in module configurations into the POM repositories section
     pomAllRepositories := true,
@@ -99,7 +95,8 @@ object OTICanonicalXMI extends Build {
         "org.scala-lang" % "scala-reflect" % Versions.scala % "provided" withSources() withJavadoc(),
         "org.scala-lang" % "scala-library" % Versions.scala % "provided" withSources() withJavadoc(),
         "org.scala-lang" % "scala-compiler" % Versions.scala % "provided" withSources() withJavadoc(),
-        "gov.nasa.jpl.mbee.omg.oti" %% "oti-core" % Versions.oti_core_version withSources() withJavadoc() artifacts Artifact("oti-core", "resource")
+        "gov.nasa.jpl.mbee.omg.oti" %% "oti-core"
+        % Versions.oti_core_version withSources() withJavadoc() artifacts Artifact("oti-core", "resource")
       ),
 
       scalacOptions ++= List("-target:jvm-1.7", "-feature"),

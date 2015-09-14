@@ -113,8 +113,8 @@ case class UnresolvedElementCrossReference[Uml <: UML](
                                                         externalReference: UMLElement[Uml])
 
 /**
- * @todo: add support for the possibility that a stereotype tag value may
- *        refer to an element serialized in a different document.
+ * @todo add support for the possibility that a stereotype tag value may
+ *       refer to an element serialized in a different document.
  */
 trait DocumentSet[Uml <: UML] {
   val serializableDocuments: Set[SerializableDocument[Uml]]
