@@ -64,7 +64,10 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   protected val elementRules: List[Element2IDRule]
 
   protected val containmentRules: List[ContainedElement2IDRule]
-  
+
+  override def element2mappedDocument(e: UMLElement[Uml]): Option[Document[Uml]] =
+    resolvedDocumentSet.element2mappedDocument(e)
+
   override def getElement2IDMap: Map[UMLElement[Uml], Try[String]] = element2id.toMap
 
   override def lookupElementXMI_ID( e: UMLElement[Uml] ): Try[Option[String]] =
