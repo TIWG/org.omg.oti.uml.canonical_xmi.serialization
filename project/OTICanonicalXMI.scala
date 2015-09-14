@@ -92,14 +92,22 @@ object OTICanonicalXMI extends Build {
       version := Versions.version,
       removeExistingHeaderBlock := true,
       libraryDependencies ++= Seq(
-        "org.scala-lang" % "scala-reflect" % Versions.scala % "provided" withSources() withJavadoc(),
-        "org.scala-lang" % "scala-library" % Versions.scala % "provided" withSources() withJavadoc(),
-        "org.scala-lang" % "scala-compiler" % Versions.scala % "provided" withSources() withJavadoc(),
+        "org.scala-lang" % "scala-reflect"
+        % Versions.scala % "provided" withSources() withJavadoc(),
+        "org.scala-lang" % "scala-library"
+        % Versions.scala % "provided" withSources() withJavadoc(),
+        "org.scala-lang" % "scala-compiler"
+        % Versions.scala % "provided" withSources() withJavadoc(),
         "gov.nasa.jpl.mbee.omg.oti" %% "oti-core"
         % Versions.oti_core_version withSources() withJavadoc() artifacts Artifact("oti-core", "resource")
       ),
 
       scalacOptions ++= List("-target:jvm-1.7", "-feature"),
+      scalacOptions in (Compile,doc) ++= Seq(
+        "-diagrams",
+        "-doc-title", name.value,
+        "-doc-root-content", baseDirectory.value + "/rootdoc.txt"
+      ),
 
       scalaSource in Compile := baseDirectory.value / "src",
       classDirectory in Compile := baseDirectory.value / "bin",
