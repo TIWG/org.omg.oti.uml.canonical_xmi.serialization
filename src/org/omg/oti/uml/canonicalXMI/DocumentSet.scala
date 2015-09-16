@@ -107,10 +107,10 @@ object DocumentEdge extends EdgeCompanion[DocumentEdge] {
     new DocumentEdge[N](NodeProduct(nodes.productElement(1), nodes.productElement(2)))
 }
 
-case class UnresolvedElementCrossReference[Uml <: UML](
-                                                        document: Document[Uml],
-                                                        documentElement: UMLElement[Uml],
-                                                        externalReference: UMLElement[Uml])
+case class UnresolvedElementCrossReference[Uml <: UML]
+(document: Document[Uml],
+ documentElement: UMLElement[Uml],
+ externalReference: UMLElement[Uml])
 
 /**
  * @todo add support for the possibility that a stereotype tag value may
@@ -123,6 +123,14 @@ trait DocumentSet[Uml <: UML] {
   val documentURIMapper: CatalogURIMapper
   val builtInURIMapper: CatalogURIMapper
 
+  /**
+   * `Aggregate` is a placeholder for a tool-specific type used for managing a collection
+   * of tool-specific UML models. In EMF-based UML modeling tools, this could be a kind of EMF ResourceSet.
+   */
+  type Aggregate
+  
+  val aggregate: Aggregate
+  
   implicit val ops: UMLOps[Uml]
   implicit val nodeT: TypeTag[Document[Uml]]
   implicit val edgeT: TypeTag[DocumentEdge[Document[Uml]]]
@@ -183,35 +191,38 @@ trait DocumentSet[Uml <: UML] {
     val unresolved = for {
       (e, d) <- element2document
       eRef <- e.allForwardReferencesToElements
-    } yield element2document.get(eRef) match {
-        case None       =>
-          if (ignoreCrossReferencedElementFilter(eRef)) {
-            None
-          } else {
-            val found = unresolvedElementMapper(eRef) match {
-              case Some(mRef) => element2document.get(mRef) match {
-                case Some(dRef) =>
-                  if (d != dRef)
-                  // add cross-reference edge only if the source is not a built-in document
-                    d match {
-                      case sd: SerializableDocument[Uml] => g += DocumentEdge(sd, dRef)
-                      case _: BuiltInDocument[Uml]       => ()
-                    }
-                  true
-                case None       =>
-                  false
+    } yield
+      element2document
+      .get(eRef)
+      .fold[Option[UnresolvedElementCrossReference[Uml]]] {
+        if (ignoreCrossReferencedElementFilter(eRef)) {
+          None
+        } else {
+          val found = unresolvedElementMapper(eRef).fold[Boolean] {
+            false
+          }{ mRef =>
+            element2document
+            .get(mRef)
+            .fold[Boolean] {
+              false
+            }{ dRef =>
+              if (d != dRef)
+              // add cross-reference edge only if the source is not a built-in document
+              d match {
+                case sd: SerializableDocument[Uml] => g += DocumentEdge(sd, dRef)
+                case _: BuiltInDocument[Uml]       => ()
               }
-              case None       =>
-                false
-            }
-            if (found) None
-            else {
-              System.out.println(
-                s" => unresolved! from ${e.xmiType.head} in ${d.uri} to ${eRef.xmiType.head}")
-              Some(UnresolvedElementCrossReference(d, e, eRef))
+              true
             }
           }
-        case Some(dRef) =>
+          if (found) None
+          else {
+            System.out.println(
+              s" => unresolved! from ${e.xmiType.head} in ${d.uri} to ${eRef.xmiType.head}")
+            Some(UnresolvedElementCrossReference(d, e, eRef))
+          }
+        }
+      }{ dRef =>
           if (d != dRef)
           // add cross-reference edge only if the source is not a built-in document
             d match {
@@ -284,13 +295,13 @@ object DocumentSet {
         Success(Some(l.value.toString))
       case l: UMLLiteralInteger[Uml] =>
         Success(Some(l.value.toString))
-      case l: UMLLiteralReal[Uml]    =>
+      case l: UMLLiteralReal[Uml] =>
         Success(Some(l.value.toString))
-      case l: UMLLiteralString[Uml]  =>
+      case l: UMLLiteralString[Uml] =>
         Success(l.value match { case None => None; case Some(s) => Some(s) })
       case iv: UMLInstanceValue[Uml] =>
         Success(iv.instance match { case None => None; case Some(is) => Some(is.xmiID) })
-      case v                         =>
+      case v =>
         Failure(new IllegalArgumentException(
           s"No value=>string serialization support for ${v.xmiType.head} (ID=${v.xmiID})"))
     }
@@ -302,7 +313,8 @@ object DocumentSet {
    builtInDocuments: Set[BuiltInDocument[Uml]],
    builtInDocumentEdges: Set[DocumentEdge[Document[Uml]]],
    ignoreCrossReferencedElementFilter: Function1[UMLElement[Uml], Boolean],
-   unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]])
+   unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
+   aggregate: DocumentSet[Uml]#Aggregate)
   (implicit ops: UMLOps[Uml], documentOps: DocumentOps[Uml],
    nodeT: TypeTag[Document[Uml]],
    edgeT: TypeTag[DocumentEdge[Document[Uml]]])
@@ -341,7 +353,8 @@ object DocumentSet {
           builtInDocuments,
           builtInDocumentEdges,
           documentURIMapper,
-          builtInURIMapper)
+          builtInURIMapper,
+          aggregate)
 
         rds <- ds.resolve(
           ignoreCrossReferencedElementFilter,

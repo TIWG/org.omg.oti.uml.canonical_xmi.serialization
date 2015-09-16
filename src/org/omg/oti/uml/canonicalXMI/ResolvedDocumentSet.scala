@@ -89,6 +89,10 @@ case class ResolvedDocumentSet[Uml <: UML](
 
       case Some(d: SerializableDocument[Uml]) =>
         Tuple2(s.xmiID(), s.xmiUUID())
+        
+      case Some(d: Document[Uml]) =>
+        throw new IllegalArgumentException(
+          s"Unrecognized document $d for stereotype ${s.qualifiedName.get} (ID=${s.xmiID()})")
     }
 
   def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] =

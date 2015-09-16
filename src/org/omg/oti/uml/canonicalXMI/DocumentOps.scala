@@ -45,7 +45,9 @@ import org.omg.oti.uml.canonicalXMI._
 import org.omg.oti.uml.write.api._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations._
-import scala.util.{Failure, Success, Try}
+
+import scala.reflect.runtime.universe._
+import scala.util.{ Failure, Success, Try }
 import scala.xml.{ Document => XMLDocument, _}
 import java.io.InputStream
 import java.net.URI
@@ -60,20 +62,11 @@ import java.net.URI
 trait DocumentOps[Uml <: UML] {
   
    /**
-    * @tparam LoadURL A type for specifying the "url" from where an OTI
-    *                 Canonical XMI document should be loaded. This type
-    *                 is intentionally opaque so that a tool-specific
-    *                 OTI adaptation can include additional information
-    *                 according to the need of the tool being adapted.
-    */
-   type LoadURL
-  
-   /**
     * Open an input stream on the external document to load
     * @param lurl The `LoadURL` coordinates of the external document to load
     * @return an input stream for reading the XMI contents of the external document to load
     */
-   def openExternalDocumentStreamForImport(lurl: LoadURL): InputStream
+   def openExternalDocumentStreamForImport(lurl: Uml#LoadURL): InputStream
 
   /**
    * Create a SerializableDocument for a root package scope created as part of a document import process
@@ -93,8 +86,9 @@ trait DocumentOps[Uml <: UML] {
    (uri: URI,
     nsPrefix: String,
     uuidPrefix: String,
-    documentURL: LoadURL,
+    documentURL: Uml#LoadURL,
     scope: UMLPackage[Uml])
+   (implicit ds: DocumentSet[Uml])
    : Try[SerializableDocument[Uml]]
 
   /**
@@ -133,6 +127,25 @@ trait DocumentOps[Uml <: UML] {
    : Option[SerializableDocument[Uml]]
 
   /**
+   * Create an initial DocumentSet graph with built-in document nodes/edges for OMG UML 2.5
+   *
+   * @param documentURIMapper OASIS XML Catalog-based mapping of package or element URIs
+   *                          to serializable document URLs and element URIs
+   * @param builtInURIMapper OASIS XML Catalog-based mapping of package or element URIs
+   *                         to OMG-published document URLs and element URIs
+   * @param nodeT Scala type information about Document[UML] graph nodes
+   * @param edgeT Scala type information about Document[UML] to Document[UML] graph edges
+   * @return A DocumentSet graph
+   */
+  def initializeDocumentSet
+  ( documentURIMapper: CatalogURIMapper,
+    builtInURIMapper: CatalogURIMapper )
+  ( implicit
+    nodeT: TypeTag[Document[Uml]],
+    edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
+  : Try[DocumentSet[Uml]]
+
+  /**
    * Create a DocumentSet graph for document nodes (serializable or built-in) and inter-document edges
    *
    * @param serializableDocuments The set of SerializableDocument nodes in the graph
@@ -142,6 +155,9 @@ trait DocumentOps[Uml <: UML] {
    *                          to serializable document URLs and element URIs
    * @param builtInURIMapper OASIS XML Catalog-based mapping of package or element URIs
    *                         to OMG-published document URLs and element URIs
+   * @param ops OTI UML Read Operations API
+   * @param nodeT Scala type information about Document[UML] graph nodes
+   * @param edgeT Scala type information about Document[UML] to Document[UML] graph edges
    * @return A DocumentSet graph
    */
   def createDocumentSet
@@ -149,9 +165,14 @@ trait DocumentOps[Uml <: UML] {
     builtInDocuments: Set[BuiltInDocument[Uml]],
     builtInDocumentEdges: Set[DocumentEdge[Document[Uml]]],
     documentURIMapper: CatalogURIMapper,
-    builtInURIMapper: CatalogURIMapper)
+    builtInURIMapper: CatalogURIMapper,
+    aggregate: DocumentSet[Uml]#Aggregate)
+  ( implicit
+    ops: UMLOps[Uml],
+    nodeT: TypeTag[Document[Uml]],
+    edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
   : Try[DocumentSet[Uml]]
-
+   
   /**
    * Add a serializable document as a new node to an existing document set graph
    *
@@ -164,8 +185,7 @@ trait DocumentOps[Uml <: UML] {
    d: SerializableDocument[Uml])
   : Try[DocumentSet[Uml]]
 
-   val catalog: CatalogURIMapper
-   val umlF: UMLFactory[Uml]
-   val umlU: UMLUpdate[Uml]
-   implicit val umlOps: UMLOps[Uml]
+  //val umlF: UMLFactory[Uml]
+  //val umlU: UMLUpdate[Uml]
+  //implicit val umlOps: UMLOps[Uml]
 }

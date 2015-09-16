@@ -44,7 +44,7 @@ package org.omg.oti.uml
  *
  *   - [[org.omg.oti.uml.canonicalXMI `DocumentSet`]]: A graph of OMG XMI Documents (nodes)
  *     and cross-references (edges)
- *   - [[org.omg.oti.uml.canonicalXMI `DocumentOps`]]:
+ *   - [[org.omg.oti.uml.canonicalXMI `DocumentOps`]]: API for OMG XMI Document production (serialization)
  */
 package object canonicalXMI {
 
