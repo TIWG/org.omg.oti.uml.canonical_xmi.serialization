@@ -123,13 +123,7 @@ trait DocumentSet[Uml <: UML] {
   val documentURIMapper: CatalogURIMapper
   val builtInURIMapper: CatalogURIMapper
 
-  /**
-   * `Aggregate` is a placeholder for a tool-specific type used for managing a collection
-   * of tool-specific UML models. In EMF-based UML modeling tools, this could be a kind of EMF ResourceSet.
-   */
-  type Aggregate
-  
-  val aggregate: Aggregate
+  val aggregate: Uml#DocumentSetAggregate
   
   implicit val ops: UMLOps[Uml]
   implicit val nodeT: TypeTag[Document[Uml]]
@@ -314,7 +308,7 @@ object DocumentSet {
    builtInDocumentEdges: Set[DocumentEdge[Document[Uml]]],
    ignoreCrossReferencedElementFilter: Function1[UMLElement[Uml], Boolean],
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
-   aggregate: DocumentSet[Uml]#Aggregate)
+   aggregate: Uml#DocumentSetAggregate)
   (implicit ops: UMLOps[Uml], documentOps: DocumentOps[Uml],
    nodeT: TypeTag[Document[Uml]],
    edgeT: TypeTag[DocumentEdge[Document[Uml]]])

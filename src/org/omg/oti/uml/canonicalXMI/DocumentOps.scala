@@ -166,7 +166,7 @@ trait DocumentOps[Uml <: UML] {
     builtInDocumentEdges: Set[DocumentEdge[Document[Uml]]],
     documentURIMapper: CatalogURIMapper,
     builtInURIMapper: CatalogURIMapper,
-    aggregate: DocumentSet[Uml]#Aggregate)
+    aggregate: Uml#DocumentSetAggregate)
   ( implicit
     ops: UMLOps[Uml],
     nodeT: TypeTag[Document[Uml]],
