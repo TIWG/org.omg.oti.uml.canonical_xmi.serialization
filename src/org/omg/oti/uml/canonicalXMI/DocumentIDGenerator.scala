@@ -45,10 +45,17 @@ import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.xmi._
 
+import scala.{Boolean,Int,Option,None,Some,StringContext,Unit}
+import scala.Predef.{require,String}
+import scala.collection.immutable._
+import scala.Predef.{Set => _, Map => _, _}
 import scala.language.postfixOps
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
+import java.lang.Integer
+import java.lang.Throwable
+import java.lang.IllegalArgumentException
 
 /**
  * @tparam Uml
@@ -81,10 +88,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   /**
    * Computes the xmi:ID for each element in the domain of the element2document map of the ResolvedDocumentSet
    */
-  def computePackageExtentXMI_ID(pkg: UMLPackage[Uml]): Try[Unit] = {
-    pkg.allOwnedElements filter resolvedDocumentSet.element2document.contains foreach getXMI_ID
-    Success(Unit)
-  }
+  def computePackageExtentXMI_ID(pkg: UMLPackage[Uml]): Try[Unit] =
+    Try(pkg.allOwnedElements filter resolvedDocumentSet.element2document.contains foreach getXMI_ID)
 
   protected def getXMI_IDREF_or_HREF_fragment(from: UMLElement[Uml], to: UMLElement[Uml]): Try[String] =
     getXMI_IDREF_or_HREF_fragment_internal(from, to) match {
@@ -191,9 +196,9 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               case Failure(t) => Failure(t)
               case Success(ownerID) =>
                 val c = containmentRules.toStream.dropWhile((c: ContainedElement2IDRule) =>
-                  !c.isDefinedAt(owner, ownerID, cf, self))
+                  !c.isDefinedAt((owner, ownerID, cf, self)))
                 if (c.nonEmpty)
-                  c.head(owner, ownerID, cf, self)
+                  c.head((owner, ownerID, cf, self))
                 else
                   Failure(illegalElementException("Unsupported", self))
             }

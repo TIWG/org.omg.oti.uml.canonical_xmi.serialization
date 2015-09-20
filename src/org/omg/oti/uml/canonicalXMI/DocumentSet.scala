@@ -48,6 +48,10 @@ import scala.language.implicitConversions
 import scala.language.postfixOps
 import scala.reflect.runtime.universe
 import scala.reflect.runtime.universe._
+import scala.{Boolean,Either,Function1,Option,Left,None,Right,Product,Some,StringContext}
+import scala.Predef.String
+import scala.collection.immutable._
+import scala.collection.Iterable
 import scala.util.Try
 import scala.util.Failure
 import scala.util.Success
@@ -58,16 +62,17 @@ import scalax.collection.GraphPredef._
 import scalax.collection.constrained._
 import scalax.collection.constrained.constraints.NoneConstraint
 import scalax.collection.constrained.generic.GraphConstrainedCompanion
-import scalax.collection.edge.CBase._
 import scalax.collection.io.edge.CEdgeParameters
-import scalax.collection.io.json.Descriptor
 import scalax.collection.io.json.descriptor.CEdgeDescriptor
 import scalax.collection.io.json.descriptor.NodeDescriptor
+import java.io.Serializable
+import java.lang.System
+import java.lang.IllegalArgumentException
 import java.io.FileWriter
 import java.io.BufferedWriter
 import java.io.PrintWriter
 
-import scalaz._, Scalaz._, Free._
+import scalaz._
 
 /**
  * There seems to be a bug in scala-graph core 1.9.1
@@ -169,7 +174,7 @@ trait DocumentSet[Uml <: UML] {
         d =>
           d.extent flatMap { e =>
             if (ignoreCrossReferencedElementFilter(e)) None
-            else Some(e -> d)
+            else Some((e, d))
           }
       }
       .toMap

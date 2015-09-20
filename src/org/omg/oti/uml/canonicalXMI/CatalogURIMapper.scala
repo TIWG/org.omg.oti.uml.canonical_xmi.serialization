@@ -44,13 +44,19 @@ import java.io.IOException
 import java.net.MalformedURLException
 import java.net.URI
 import java.net.URL
+
+import scala.{Boolean,Int,Option,None,Some,StringContext,Unit}
+import scala.Predef.{require,String}
+import scala.collection.immutable._
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
 import org.apache.xml.resolver.Catalog
 import org.apache.xml.resolver.CatalogManager
 import org.apache.xml.resolver.tools.CatalogResolver
+
 import java.io.FileNotFoundException
+import java.lang.Throwable
 
 case class CatalogURIMapper( 
     catalogManager: CatalogManager, 
@@ -66,13 +72,7 @@ case class CatalogURIMapper(
     this( catalogManager, new CatalogResolver( catalogManager ) )
 
   def parseCatalog( catalogURI: URI ): Try[Unit] =
-    try {
-      catalog.parseCatalog( catalogURI.toURL )
-      Success( Unit )
-    }
-    catch {
-      case e: IOException => Failure( e )
-    }
+    Try(catalog.parseCatalog( catalogURI.toURL ))
 
   def loadResolutionStrategy( 
       resolved: String, 
@@ -84,7 +84,7 @@ case class CatalogURIMapper(
         "The document extension, when specified, must start with '.'"+
         s"currently, it is '$appendDocumentExtensionUnlessPresent'")
         
-    def ignore( e: Exception ) = {}
+    def ignore( e: Throwable ) = {}
 
     val normalized = new URI( resolved )
     val normalizedPath = normalized.toString
@@ -157,7 +157,7 @@ case class CatalogURIMapper(
       resolutionStrategy: ( String ) => Option[URI] ): 
       Try[Option[URI]] = {
 
-    def ignore( e: Exception ) = {}
+    def ignore( e: Throwable ) = {}
 
     val rawPath = uri.toString
     val iriPath = 

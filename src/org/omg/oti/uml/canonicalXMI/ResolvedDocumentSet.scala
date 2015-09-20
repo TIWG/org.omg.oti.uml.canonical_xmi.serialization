@@ -43,17 +43,19 @@ import java.io.{FileOutputStream, OutputStreamWriter, PrintWriter}
 
 import org.omg.oti.uml._
 import org.omg.oti.uml.read.UMLStereotypeTagValue
-import org.omg.oti.uml.read.operations._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.xmi._
 
+import scala.{Function0,Option,None,Some,StringContext,Tuple2,Tuple3,Unit}
+import scala.Predef.{Set => _, Map => _, _}
 import scala.annotation.tailrec
-import scala.collection.immutable.SortedMap
+import scala.collection.immutable._
 import scala.language.{higherKinds, implicitConversions, postfixOps}
 import scala.util.{Failure, Success, Try}
 import scalaz.Free._
 import scalaz.Scalaz._
 import scalaz._
+import java.lang.IllegalArgumentException
 
 case class ResolvedDocumentSet[Uml <: UML](
                                             ds: DocumentSet[Uml],
@@ -104,8 +106,9 @@ case class ResolvedDocumentSet[Uml <: UML](
   def serialize
   ()
   (implicit idg: IDGenerator[Uml])
-  : Try[Unit] = {
+  : Try[Unit] =
 
+  Try(
     g.nodes foreach {
       _.value match {
         case _: BuiltInDocument[Uml] => ()
@@ -115,10 +118,7 @@ case class ResolvedDocumentSet[Uml <: UML](
             case Success(_) => ()
           }
       }
-    }
-
-    Success(Unit)
-  }
+    })
 
   def serializePkg
   (pkg: UMLPackage[Uml])
@@ -131,16 +131,12 @@ case class ResolvedDocumentSet[Uml <: UML](
 
     doc match {
       case Some(d) =>
-        serialize(d) match {
-          case Failure(t) => return Failure(t)
-          case Success(_) => ()
-        }
+        serialize(d)
 
       case None =>
         Failure(new IllegalArgumentException(
           s"Serialization failed: no document found for ${pkg.qualifiedName.get}"))
     }
-    Success(Unit)
   }
 
   protected def foldTagValues
@@ -324,12 +320,12 @@ case class ResolvedDocumentSet[Uml <: UML](
                 val xmlOutput = xmlPrettyPrinter.format(xmi)
 
                 //            val bw = new PrintWriter( new FileWriter( xmlFile ) )
-                val bw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(xmlFile), "UTF-8"))
-                bw.println("<?xml version='1.0' encoding='UTF-8'?>")
-                bw.println(xmlOutput)
-                bw.close()
-
-                Success(Unit)
+                Try({
+                      val bw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(xmlFile), "UTF-8"))
+                      bw.println("<?xml version='1.0' encoding='UTF-8'?>")
+                      bw.println(xmlOutput)
+                      bw.close()
+                    })
             }
         }
     }
@@ -599,7 +595,7 @@ case class ResolvedDocumentSet[Uml <: UML](
                                   attributes = idrefAttrib, scope = xmiScopes, minimizeEmpty = true)
                               idrefNode
                             } else {
-                              val href = dRef.documentURL + "#" + eRefID
+                              val href = dRef.documentURL.toString + "#" + eRefID
                               val externalHRef = dRef match {
                                 case _: SerializableDocument[Uml] => href
                                 case _: BuiltInDocument[Uml] => ds.builtInURIMapper.resolve(href).getOrElse(href)
@@ -687,7 +683,7 @@ case class ResolvedDocumentSet[Uml <: UML](
       val nestedNodes = for {k <- nested.keySet.toSeq} yield nested(k)
       val idrefNodes = for {k <- idrefs.keySet.toSeq} yield idrefs(k)
       val resultNodes = nestedNodes ++ idrefNodes ++ nodes
-      Success(resultingSubElements, resultNodes, redefined)
+      Success((resultingSubElements, resultNodes, redefined))
     }
 
     def applyGenerateNodeElementsOrSkip
@@ -699,13 +695,13 @@ case class ResolvedDocumentSet[Uml <: UML](
     : Trampoline[Try[SerializationState]] =
       subs match {
         case Nil => return_ {
-          Success(subElements, nodes, redefined)
+          Success((subElements, nodes, redefined))
         }
         case x :: xs =>
           for {
             node <- if (subElements.contains(x))
               return return_ {
-                Success(subElements, nodes, redefined)
+                Success((subElements, nodes, redefined))
               }
             else
               append1Pair(x, callGenerateNodeElement(f, x), subElements, nodes, redefined)

@@ -39,16 +39,15 @@
  */
 package org.omg.oti.uml.canonicalXMI
 
-import org.omg.oti.uml._
 import org.omg.oti.uml.xmi._
-import org.omg.oti.uml.canonicalXMI._
-import org.omg.oti.uml.write.api._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations._
 
+import scala.{Option}
+import scala.Predef.String
+import scala.collection.immutable._
 import scala.reflect.runtime.universe._
-import scala.util.{ Failure, Success, Try }
-import scala.xml.{ Document => XMLDocument, _}
+import scala.util.Try
 import java.io.InputStream
 import java.net.URI
 
