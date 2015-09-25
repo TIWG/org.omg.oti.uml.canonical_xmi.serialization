@@ -64,6 +64,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   import umlOps._
 
+  implicit val documentOps: DocumentOps[Uml]
+
   implicit val resolvedDocumentSet: ResolvedDocumentSet[Uml]
 
   protected val element2id: Element2IDHashMap
@@ -72,12 +74,17 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   protected val containmentRules: List[ContainedElement2IDRule]
 
-  override def element2mappedDocument(e: UMLElement[Uml]): Option[Document[Uml]] =
+  override def element2mappedDocument
+  (e: UMLElement[Uml])
+  : Option[Document[Uml]] =
     resolvedDocumentSet.element2mappedDocument(e)
 
-  override def getElement2IDMap: Map[UMLElement[Uml], Try[String]] = element2id.toMap
+  override def getElement2IDMap
+  : Map[UMLElement[Uml], Try[String]] = element2id.toMap
 
-  override def lookupElementXMI_ID(e: UMLElement[Uml]): Try[Option[String]] =
+  override def lookupElementXMI_ID
+  (e: UMLElement[Uml])
+  : Try[Option[String]] =
     element2id.get(e)
     .fold[Try[Option[String]]] {
       Success(None)
@@ -91,7 +98,10 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   def computePackageExtentXMI_ID(pkg: UMLPackage[Uml]): Try[Unit] =
     Try(pkg.allOwnedElements filter resolvedDocumentSet.element2document.contains foreach getXMI_ID)
 
-  protected def getXMI_IDREF_or_HREF_fragment(from: UMLElement[Uml], to: UMLElement[Uml]): Try[String] =
+  protected def getXMI_IDREF_or_HREF_fragment
+  (from: UMLElement[Uml],
+   to: UMLElement[Uml])
+  : Try[String] =
     getXMI_IDREF_or_HREF_fragment_internal(from, to) match {
       case Success(fragment) =>
         Success(fragment)
@@ -99,7 +109,10 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         getXMI_IDREF_or_HREF_fragment(from, getMappedOrReferencedElement(to))
     }
 
-  protected def getXMI_IDREF_or_HREF_fragment_internal(from: UMLElement[Uml], to: UMLElement[Uml]): Try[String] =
+  protected def getXMI_IDREF_or_HREF_fragment_internal
+  (from: UMLElement[Uml],
+   to: UMLElement[Uml])
+  : Try[String] =
     (resolvedDocumentSet.element2document.get(from),
       resolvedDocumentSet.element2document.get(to)) match {
       case (None, _) =>
@@ -119,7 +132,11 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               }{ id => Success(id) }
 
 
-              builtInURITo = d2.documentURL.resolve("#" + builtIn_d2_id).toString
+              builtInURITo =
+                documentOps.getExternalDocumentURL(d2.documentURL)
+                .resolve("#" + builtIn_d2_id)
+                .toString
+
               // use the builtInURIMapper to convert the built-in URI of the 'to' element into an OMG URI
               mappedURITo = resolvedDocumentSet.ds.builtInURIMapper.resolve(builtInURITo).getOrElse(builtInURITo)
               fragmentIndex = mappedURITo.lastIndexOf('#')

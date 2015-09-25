@@ -131,6 +131,7 @@ trait DocumentSet[Uml <: UML] {
   val aggregate: Uml#DocumentSetAggregate
   
   implicit val ops: UMLOps[Uml]
+  implicit val documentOps: DocumentOps[Uml]
   implicit val nodeT: TypeTag[Document[Uml]]
   implicit val edgeT: TypeTag[DocumentEdge[Document[Uml]]]
 
@@ -231,7 +232,12 @@ trait DocumentSet[Uml <: UML] {
           None
       }
 
-    Success((ResolvedDocumentSet(this, g, element2document, unresolvedElementMapper), unresolved.flatten))
+    Success((ResolvedDocumentSet(
+      this,
+      g, documentOps,
+      element2document,
+      unresolvedElementMapper),
+      unresolved.flatten))
   }
 
   /**

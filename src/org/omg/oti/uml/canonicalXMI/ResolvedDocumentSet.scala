@@ -60,8 +60,11 @@ import java.lang.IllegalArgumentException
 case class ResolvedDocumentSet[Uml <: UML]
 ( ds: DocumentSet[Uml],
   g: DocumentSet[Uml]#MutableDocumentSetGraph,
+  documentOps: DocumentOps[Uml],
   element2document: Map[UMLElement[Uml], Document[Uml]],
   unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]]) {
+
+  implicit val dOps = documentOps
 
   def element2mappedDocument(e: UMLElement[Uml]): Option[Document[Uml]] =
     element2document
@@ -70,7 +73,7 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   def getStereotype_ID_UUID
   (s: UMLStereotype[Uml])
-  (implicit idg: IDGenerator[Uml])
+  (implicit idg: IDGenerator[Uml], dOps: DocumentOps[Uml])
   : (String, String) =
     element2mappedDocument(s)
     .fold[(String,String)]{
@@ -78,7 +81,10 @@ case class ResolvedDocumentSet[Uml <: UML]
           s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${s.xmiID()})")
     }{
       case d: BuiltInDocument[Uml] =>
-        val builtInURI = d.documentURL.resolve("#" + s.xmiID()).toString
+        val builtInURI =
+          documentOps.getExternalDocumentURL(d.documentURL)
+          .resolve("#" + s.xmiID())
+          .toString
         val mappedURI = ds.builtInURIMapper.resolve(builtInURI).getOrElse(builtInURI)
         val fragmentIndex = mappedURI.lastIndexOf('#')
         require(fragmentIndex > 0)

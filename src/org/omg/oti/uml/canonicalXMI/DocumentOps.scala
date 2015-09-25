@@ -48,6 +48,7 @@ import scala.Predef.String
 import scala.collection.immutable._
 import scala.reflect.runtime.universe._
 import scala.util.Try
+
 import java.io.InputStream
 import java.net.URI
 
@@ -59,7 +60,15 @@ import java.net.URI
  * @tparam Uml Type signature of a tool-specific adaptation of OMG UML 2.5
  */
 trait DocumentOps[Uml <: UML] {
-  
+
+  /**
+   * Get the URI of the document as an externally accessible resource.
+   *
+   * @param lurl The `LoadURL` coordinates of the external document to load
+   * @return The URI where the document can be accesssed as an external resource
+   */
+  def getExternalDocumentURL(lurl: Uml#LoadURL): URI
+
    /**
     * Open an input stream on the external document to load
     * @param lurl The `LoadURL` coordinates of the external document to load
