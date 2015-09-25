@@ -74,10 +74,10 @@ case class CatalogURIMapper(
   def parseCatalog( catalogURI: URI ): Try[Unit] =
     Try(catalog.parseCatalog( catalogURI.toURL ))
 
-  def loadResolutionStrategy( 
-      resolved: String, 
-      appendDocumentExtensionUnlessPresent: Option[String] ): 
-      Option[URI] = {
+  def loadResolutionStrategy
+  ( appendDocumentExtensionUnlessPresent: Option[String] )
+  ( resolved: String )
+  : Option[URI] = {
 
     require(
         appendDocumentExtensionUnlessPresent.getOrElse(".").startsWith("."),
