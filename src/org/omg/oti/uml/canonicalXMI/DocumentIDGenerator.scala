@@ -96,7 +96,10 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    * Computes the xmi:ID for each element in the domain of the element2document map of the ResolvedDocumentSet
    */
   def computePackageExtentXMI_ID(pkg: UMLPackage[Uml]): Try[Unit] =
-    Try(pkg.allOwnedElements filter resolvedDocumentSet.element2document.contains foreach getXMI_ID)
+    Try(pkg
+        .allOwnedElements
+        .filter(resolvedDocumentSet.isElementMapped2Document)
+        .foreach(getXMI_ID))
 
   protected def getXMI_IDREF_or_HREF_fragment
   (from: UMLElement[Uml],
@@ -113,45 +116,44 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   (from: UMLElement[Uml],
    to: UMLElement[Uml])
   : Try[String] =
-    (resolvedDocumentSet.element2document.get(from),
-      resolvedDocumentSet.element2document.get(to)) match {
-      case (None, _) =>
-        Failure(illegalElementException("Unknown document for element reference from", from))
-
-      case (_, None) =>
+    resolvedDocumentSet.element2mappedDocument(from)
+    .fold[Try[String]] {
+      Failure(illegalElementException("Unknown document for element reference from", from))
+    }{ d1 =>
+      resolvedDocumentSet.element2mappedDocument(to)
+      .fold[Try[String]] {
         Failure(illegalElementException("Unknown document for element reference to", to))
+      }{
+        case db2: BuiltInDocument[Uml] =>
+          require(d1 != db2)
+          // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
+          for {
+            builtIn_d2_id <- to.toolSpecific_id.fold[Try[String]] {
+               Failure(new IllegalArgumentException(s"There should be a tool-specific xmi:id for $db2"))
+            }{ id =>
+              Success(id)
+             }
 
-      case (Some(d1), Some(d2)) =>
-        d2 match {
-          case db2: BuiltInDocument[Uml] =>
-            require(d1 != db2)
-            // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
-            for {
-              builtIn_d2_id <- to.toolSpecific_id.fold[Try[String]] {
-                Failure(new IllegalArgumentException(s"There should be a tool-specific xmi:id for $db2"))
-              }{ id => Success(id) }
-
-
-              builtInURITo =
-                documentOps.getExternalDocumentURL(d2.documentURL)
+            builtInURITo =
+                documentOps.getExternalDocumentURL(db2.documentURL)
                 .resolve("#" + builtIn_d2_id)
                 .toString
 
-              // use the builtInURIMapper to convert the built-in URI of the 'to' element into an OMG URI
-              mappedURITo = resolvedDocumentSet.ds.builtInURIMapper.resolve(builtInURITo).getOrElse(builtInURITo)
-              fragmentIndex = mappedURITo.lastIndexOf('#')
-              _ = require(fragmentIndex > 0)
+            // use the builtInURIMapper to convert the built-in URI of the 'to' element into an OMG URI
+            mappedURITo = resolvedDocumentSet.ds.builtInURIMapper.resolve(builtInURITo).getOrElse(builtInURITo)
+            fragmentIndex = mappedURITo.lastIndexOf('#')
+            _ = require(fragmentIndex > 0)
 
-              // It's not needed to add the prefix since it's already included in the computed ID
-              fragment = IDGenerator.xmlSafeID(/*d2.nsPrefix+"."+*/ mappedURITo.substring(fragmentIndex + 1))
-            } yield IDGenerator.xmlSafeID(fragment)
+            // It's not needed to add the prefix since it's already included in the computed ID
+            fragment = IDGenerator.xmlSafeID(mappedURITo.substring(fragmentIndex + 1))
+          } yield IDGenerator.xmlSafeID(fragment)
 
-          case _: SerializableDocument[Uml] =>
-            getXMI_ID(getMappedOrReferencedElement(to))
+        case _: SerializableDocument[Uml] =>
+          getXMI_ID(getMappedOrReferencedElement(to))
 
-          case d =>
-            Failure(illegalElementException(s"Unknown document $d for element reference to", to))
-        }
+        case d =>
+          Failure(illegalElementException(s"Unknown document $d for element reference to", to))
+      }
     }
 
   /**
@@ -163,28 +165,29 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   def getXMI_ID(self: UMLElement[Uml]): Try[String] =
     element2id.getOrElseUpdate(
     self, {
-      resolvedDocumentSet.element2document.get( self )
+      resolvedDocumentSet.element2mappedDocument( self )
         .fold[Try[String]] {
           Failure(illegalElementException("Unknown document for element reference ", self))
-        }{ _ match {
-
+        }{
           case d: BuiltInDocument[Uml] =>
-            self.toolSpecific_id
-            .fold[Try[String]]{
+            self
+            .toolSpecific_id
+            .fold[Try[String]] {
               Failure(illegalElementException("Element from a BuiltInDocument without xmi:id", self))
-               }{
-                          id => Success(id)
+            }{ id =>
+              Success(id)
             }
 
           case d: SerializableDocument[Uml] =>
             self.oti_xmiID match {
-              case Some(id) => Success(id)
-              case None => computeID(self)
+              case Some(id) =>
+                Success(id)
+              case None =>
+                computeID(self)
             }
 
           case d =>
             Failure(illegalElementException(s"Unrecognized document $d for element", self))
-        }
         
       }
     })
@@ -193,7 +196,9 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     val r =
       elementRules
       .toStream
-      .dropWhile((r: Element2IDRule) => !r.isDefinedAt(self))
+      .dropWhile { r: Element2IDRule =>
+        !r.isDefinedAt(self)
+      }
 
     if (r.nonEmpty)
       r.head(self)
@@ -209,9 +214,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           case Success(None) =>
             Failure(illegalElementException("Element without an owner is not supported(2)", self))
           case Success(Some(cf)) =>
-            getXMI_ID(owner) match {
-              case Failure(t) => Failure(t)
-              case Success(ownerID) =>
+            getXMI_ID(owner)
+            .flatMap { ownerID =>
                 val c = containmentRules.toStream.dropWhile((c: ContainedElement2IDRule) =>
                   !c.isDefinedAt((owner, ownerID, cf, self)))
                 if (c.nonEmpty)
@@ -220,7 +224,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                   Failure(illegalElementException("Unsupported", self))
             }
         }
-    }
+      }
   }
 
   val rule0: Element2IDRule = {
@@ -233,7 +237,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       .fold[Try[String]] {
         Failure(illegalElementException("Document package scope must be explicitly named", root))
       }{
-        n => Success(IDGenerator.xmlSafeID(n))
+        n =>
+        Success(IDGenerator.xmlSafeID(n))
       }
   }
 
@@ -390,34 +395,33 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   /**
    * Rule #3: any Element on which Rule#2 does not apply and which is a DirectedRelationship
+   *
+   * Check if the target of a directed relationship is an element in a Built-In Document
+   * (e.g., UML Metamodel, StandardProfile, etc...) As of OMG UML 2.5, such target elements
+   * may have a legacy xmi:ID such as "_0" which is is insufficient to avoid duplication.
+   * (For example, a package that imports both UML Metamodel and StandardProfile)
+   *
+   * To strengthen the unicity and reproducibility of the XMI:ID of the directed relationship,
+   * references to elements in built-in documents include the built-in document URI in addition to the
+   * xmi:ID of the referenced element.
    */
   val crule3: ContainedElement2IDRule = {
     case (owner, ownerID, cf, dr: UMLDirectedRelationship[Uml]) =>
       dr.target.toList match {
-        case List(t) =>
-          getXMI_IDREF_or_HREF_fragment(owner, t) match {
+        case List(relTarget) =>
+          getXMI_IDREF_or_HREF_fragment(owner, relTarget) match {
             case Failure(t) =>
               Failure(illegalElementException(s"Binary DirectedRelationship must have a target - $t", dr))
             case Success(tid) =>
-              /* We need to prevent ID duplication when more than one relationship of the same kind
-               *  target packages which have the same name (cf. ImportPackages in UML2.5).
-               *  The code below is a workaround for dealing with the current situation where
-               *  OMG xmi:ID are not "OTI compliant" in the special case of packages named "_0"
-               *  In such cases, the code below replace the ID of the target package by
-               *  its URI
-               */
-              val usedId = tid match {
-                case "_0" =>
-                  resolvedDocumentSet.element2document.get(t) match {
-                    case Some(d: BuiltInDocument[Uml]) =>
-                      d.uri.toString()
+              val targetID =
+                resolvedDocumentSet.element2mappedDocument(relTarget) match {
+                  case Some(d: BuiltInDocument[Uml]) =>
+                    IDGenerator.xmlSafeID(d.uri.toString() + "." + tid)
+                  case _ =>
+                    tid
+                }
 
-                    case _ => tid
-                  }
-
-                case _ => tid
-              }
-              Success(ownerID + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + usedId)
+              Success(ownerID + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + targetID)
           }
         case _ =>
           Failure(illegalElementException("Binary DirectedRelationship must have a target", dr))

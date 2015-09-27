@@ -193,7 +193,4 @@ trait DocumentOps[Uml <: UML] {
    d: SerializableDocument[Uml])
   : Try[DocumentSet[Uml]]
 
-  //val umlF: UMLFactory[Uml]
-  //val umlU: UMLUpdate[Uml]
-  //implicit val umlOps: UMLOps[Uml]
 }

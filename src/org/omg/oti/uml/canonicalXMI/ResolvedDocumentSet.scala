@@ -46,7 +46,7 @@ import org.omg.oti.uml.read.UMLStereotypeTagValue
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.xmi._
 
-import scala.{Function0,Option,None,Some,StringContext,Tuple2,Tuple3,Unit}
+import scala.{Boolean,Function0,Option,None,Some,StringContext,Tuple2,Tuple3,Unit}
 import scala.Predef.{Set => _, Map => _, _}
 import scala.annotation.tailrec
 import scala.collection.immutable._
@@ -61,15 +61,23 @@ case class ResolvedDocumentSet[Uml <: UML]
 ( ds: DocumentSet[Uml],
   g: DocumentSet[Uml]#MutableDocumentSetGraph,
   documentOps: DocumentOps[Uml],
-  element2document: Map[UMLElement[Uml], Document[Uml]],
+  protected val element2document: Map[UMLElement[Uml], Document[Uml]],
   unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]]) {
 
   implicit val dOps = documentOps
 
+  def isElementMapped2Document(e: UMLElement[Uml]): Boolean =
+    element2mappedDocument(e).nonEmpty
+
   def element2mappedDocument(e: UMLElement[Uml]): Option[Document[Uml]] =
     element2document
     .get(e)
-    .orElse(unresolvedElementMapper(e).flatMap(em => element2document.get(em)))
+    .orElse {
+      unresolvedElementMapper(e)
+      .flatMap { em =>
+        element2document.get(em)
+      }
+    }
 
   def getStereotype_ID_UUID
   (s: UMLStereotype[Uml])
@@ -107,16 +115,19 @@ case class ResolvedDocumentSet[Uml <: UML]
   ()
   (implicit idg: IDGenerator[Uml])
   : Try[Unit] =
-
   Try(
-    g.nodes foreach {
+    g
+    .nodes
+    .foreach {
       _.value match {
         case _: BuiltInDocument[Uml] =>
           ()
         case d: SerializableDocument[Uml] =>
           serialize(d) match {
-            case Failure(t) => return Failure(t)
-            case Success(_) => ()
+            case Failure(t) =>
+              return Failure(t)
+            case Success(_) =>
+              ()
           }
       }
     })
@@ -129,11 +140,11 @@ case class ResolvedDocumentSet[Uml <: UML]
     .serializableDocuments
     .find { d =>
       d.scope == pkg }
-    .fold[Try[Unit]](
-     Failure(new IllegalArgumentException(
+    .fold[Try[Unit]]{
+      Failure(new IllegalArgumentException(
           s"Serialization failed: no document found for ${pkg.qualifiedName.get}"))
-    ){ d =>
-        serialize(d)
+    }{ d =>
+      serialize(d)
     }
 
   protected def foldTagValues
@@ -310,7 +321,6 @@ case class ResolvedDocumentSet[Uml <: UML]
                 val xmlPrettyPrinter = new PrettyPrinter(width = 300, step = 2)
                 val xmlOutput = xmlPrettyPrinter.format(xmi)
 
-                //            val bw = new PrintWriter( new FileWriter( xmlFile ) )
                 Try({
                       val bw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(xmlFile), "UTF-8"))
                       bw.println("<?xml version='1.0' encoding='UTF-8'?>")
@@ -492,7 +502,8 @@ case class ResolvedDocumentSet[Uml <: UML]
 
     //    assert(
     //      Thread.currentThread().getStackTrace.count( _.getMethodName == "generateNodeElement" ) == 1,
-    //      s"Verification that the trampolined function 'wrapNodes' runs recursively stack-free for label=${label}, e=${e.xmiID}" )
+    //      s"Verification that the trampolined function 'wrapNodes' runs recursively " +
+    //      s"stack-free for label=${label}, e=${e.xmiID}" )
 
     def foldAttribute(next: Try[MetaData], f: e.MetaAttributeFunction): Try[MetaData] =
       (next, f.evaluate(e, idg)) match {

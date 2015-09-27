@@ -169,16 +169,47 @@ trait DocumentSet[Uml <: UML] {
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]])
   : Try[(ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {
 
+    val allDocuments = serializableDocuments ++ builtInDocuments
+
     val element2document: Map[UMLElement[Uml], Document[Uml]] =
-      (serializableDocuments ++ builtInDocuments)
-      .flatMap {
-        d =>
-          d.extent flatMap { e =>
-            if (ignoreCrossReferencedElementFilter(e)) None
-            else Some((e, d))
-          }
+      allDocuments
+      .flatMap { d =>
+        d
+        .extent
+        .flatMap { e =>
+          if (ignoreCrossReferencedElementFilter(e))
+            None
+          else
+            Some((e, d))
+        }
       }
       .toMap
+
+
+    def lookupDocumentForElement
+    (e: UMLElement[Uml])
+    : Option[Document[Uml]]
+    = element2document
+    .get(e)
+    .orElse {
+      if (ignoreCrossReferencedElementFilter(e))
+        None
+      else
+        unresolvedElementMapper(e)
+        .flatMap { eMapped =>
+          element2document.get(eMapped)
+        }
+    }
+
+    def lookupDocumentForElementReference
+    (d: Document[Uml], e: UMLElement[Uml], eRef: UMLElement[Uml])
+    : Either[Document[Uml], UnresolvedElementCrossReference[Uml]]
+    = lookupDocumentForElement(eRef)
+    .fold[Either[Document[Uml], UnresolvedElementCrossReference[Uml]]] {
+      Right(UnresolvedElementCrossReference(d, e, eRef))
+    }{ dRef =>
+      Left(dRef)
+    }
 
     val g = mGraphFactory.empty()
 
@@ -191,53 +222,26 @@ trait DocumentSet[Uml <: UML] {
     val unresolved = for {
       (e, d) <- element2document
       eRef <- e.allForwardReferencesToElements
-    } yield
-      element2document
-      .get(eRef)
-      .fold[Option[UnresolvedElementCrossReference[Uml]]] {
-        if (ignoreCrossReferencedElementFilter(eRef)) {
-          None
-        } else {
-          val found = unresolvedElementMapper(eRef).fold[Boolean] {
-            false
-          }{ mRef =>
-            element2document
-            .get(mRef)
-            .fold[Boolean] {
-              false
-            }{ dRef =>
-              if (d != dRef)
-              // add cross-reference edge only if the source is not a built-in document
-              d match {
-                case sd: SerializableDocument[Uml] => g += DocumentEdge(sd, dRef)
-                case _: BuiltInDocument[Uml]       => ()
-              }
-              true
-            }
+      u <- lookupDocumentForElementReference(d, e, eRef) match {
+        case Right(unresolved) =>
+          Some(unresolved)
+        case Left(dRef) =>
+          d match {
+            case sd: SerializableDocument[Uml] =>
+              g += DocumentEdge(sd, dRef)
+            case _ =>
+              ()
           }
-          if (found) None
-          else {
-            System.out.println(
-              s" => unresolved! from ${e.xmiType.head} in ${d.uri} to ${eRef.xmiType.head}")
-            Some(UnresolvedElementCrossReference(d, e, eRef))
-          }
-        }
-      }{ dRef =>
-          if (d != dRef)
-          // add cross-reference edge only if the source is not a built-in document
-            d match {
-              case sd: SerializableDocument[Uml] => g += DocumentEdge(sd, dRef)
-              case _: BuiltInDocument[Uml]       => ()
-            }
           None
       }
+    } yield u
 
     Success((ResolvedDocumentSet(
       this,
       g, documentOps,
       element2document,
       unresolvedElementMapper),
-      unresolved.flatten))
+      unresolved))
   }
 
   /**
@@ -248,12 +252,14 @@ trait DocumentSet[Uml <: UML] {
   def topologicalSort
   (g: MutableDocumentSetGraph)
   : Either[Document[Uml], List[Document[Uml]]] =
-    searchAll(g.nodes, Memo()).right.map(_.sorted.map(_.value))
+    searchAll(g.nodes, Memo())
+    .right
+    .map(_.sorted.map(_.value))
 
-  case class Memo(
-                   sorted: List[Document[Uml]] = Nil,
-                   grey: MutableDocumentSetGraph = mGraphFactory.empty(),
-                   black: MutableDocumentSetGraph = mGraphFactory.empty())
+  case class Memo
+  ( sorted: List[Document[Uml]] = Nil,
+    grey: MutableDocumentSetGraph = mGraphFactory.empty(),
+    black: MutableDocumentSetGraph = mGraphFactory.empty() )
 
   def dfs
   (node: MutableDocumentSetGraph#NodeT, memo: Memo)
@@ -265,17 +271,24 @@ trait DocumentSet[Uml <: UML] {
     else
       searchAll(
         node.outNeighbors.toIterable,
-        memo.copy(grey = memo.grey + node)).
-      right.map(a => Memo(node.value :: a.sorted, memo.grey, a.black + node))
+        memo.copy(grey = memo.grey + node))
+      .right
+      .map { a =>
+        Memo(node.value :: a.sorted, memo.grey, a.black + node)
+      }
   }
 
   def searchAll
   (nodes: Iterable[MutableDocumentSetGraph#NodeT], memo: Memo)
   : Either[Document[Uml], Memo] = {
-    ( right( memo ) /: nodes )( ( accu, node ) => accu.right.flatMap( m => dfs( node, m ) ) )
+    ( right( memo ) /: nodes ) {
+      ( accu, node ) =>
+      accu.right.flatMap( m => dfs( node, m ) )
+    }
   }
 
-  def right(m: Memo): Either[Document[Uml], Memo] = Right(m)
+  def right(m: Memo): Either[Document[Uml], Memo] =
+    Right(m)
 
 }
 
@@ -337,20 +350,6 @@ object DocumentSet {
         root <- roots
         sd <- createSerializableDocumentFromExistingRootPackage(root)
       } yield sd
-
-      //        rootURI <- root.getEffectiveURI
-      //        rootURL <- root.getDocumentURL
-      //        rootUUIDPrefix = root.oti_uuidPrefix.getOrElse(rootURI+"#")
-      //      } yield {
-      //        System.out.println(
-      //          s"# SerializableDocument: rootURI=${rootURI}, nsPrefix=${root.name.get}, documentURL=${rootURL}" )
-      //        SerializableDocument(
-      //          uri = new java.net.URI( rootURI ),
-      //          nsPrefix = IDGenerator.xmlSafeID( root.name.get ),
-      //          uuidPrefix = rootUUIDPrefix,
-      //          documentURL = new java.net.URI( rootURL ),
-      //          scope = root )
-      //      }
 
       for {
         ds <- createDocumentSet(
