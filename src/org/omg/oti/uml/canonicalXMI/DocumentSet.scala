@@ -131,6 +131,7 @@ trait DocumentSet[Uml <: UML] {
   val aggregate: Uml#DocumentSetAggregate
   
   implicit val ops: UMLOps[Uml]
+  implicit val otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]]
   implicit val documentOps: DocumentOps[Uml]
   implicit val nodeT: TypeTag[Document[Uml]]
   implicit val edgeT: TypeTag[DocumentEdge[Document[Uml]]]
