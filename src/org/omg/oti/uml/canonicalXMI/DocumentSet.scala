@@ -239,7 +239,7 @@ trait DocumentSet[Uml <: UML] {
 
     Success((ResolvedDocumentSet(
       this,
-      g, documentOps,
+      g,
       element2document,
       unresolvedElementMapper),
       unresolved))
@@ -335,6 +335,7 @@ object DocumentSet {
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
    aggregate: Uml#DocumentSetAggregate)
   (implicit ops: UMLOps[Uml], documentOps: DocumentOps[Uml],
+   otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]],
    nodeT: TypeTag[Document[Uml]],
    edgeT: TypeTag[DocumentEdge[Document[Uml]]])
   : Try[(ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {

@@ -60,11 +60,11 @@ import java.lang.IllegalArgumentException
 case class ResolvedDocumentSet[Uml <: UML]
 ( ds: DocumentSet[Uml],
   g: DocumentSet[Uml]#MutableDocumentSetGraph,
-  documentOps: DocumentOps[Uml],
   protected val element2document: Map[UMLElement[Uml], Document[Uml]],
   unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]]) {
 
-  implicit val dOps = documentOps
+  implicit val dOps = ds.documentOps
+  implicit val otiCh = ds.otiCharacterizations
 
   def isElementMapped2Document(e: UMLElement[Uml]): Boolean =
     element2mappedDocument(e).nonEmpty
@@ -90,7 +90,7 @@ case class ResolvedDocumentSet[Uml <: UML]
     }{
       case d: BuiltInDocument[Uml] =>
         val builtInURI =
-          documentOps.getExternalDocumentURL(d.documentURL)
+          dOps.getExternalDocumentURL(d.documentURL)
           .resolve("#" + s.xmiID())
           .toString
         val mappedURI = ds.builtInURIMapper.resolve(builtInURI).getOrElse(builtInURI)
