@@ -49,7 +49,7 @@ import scala.language.postfixOps
 import scala.reflect.runtime.universe
 import scala.reflect.runtime.universe._
 import scala.{Boolean,Either,Function1,Option,Left,None,Right,Product,Some,StringContext}
-import scala.Predef.String
+import scala.Predef.{Map =>_, Set =>_,_}
 import scala.collection.immutable._
 import scala.collection.Iterable
 import scala.util.Try
@@ -172,19 +172,29 @@ trait DocumentSet[Uml <: UML] {
 
     val allDocuments = serializableDocuments ++ builtInDocuments
 
-    val element2document: Map[UMLElement[Uml], Document[Uml]] =
-      allDocuments
-      .flatMap { d =>
-        d
-        .extent
-        .flatMap { e =>
-          if (ignoreCrossReferencedElementFilter(e))
-            None
-          else
-            Some((e, d))
-        }
-      }
+    val element2document: Map[UMLElement[Uml], Document[Uml]] = {
+      val allE2D: Map[UMLElement[Uml], Document[Uml]] =
+        allDocuments
+          .flatMap { d =>
+            val dExtent: Set[UMLElement[Uml]] =
+              d.extent
+            val dExtentF: Set[UMLElement[Uml]] =
+              dExtent
+                .filter { (e) =>
+                  !ignoreCrossReferencedElementFilter(e)
+                }
+            val dMap: Map[UMLElement[Uml], Document[Uml]] =
+              dExtentF
+                .map { (e) =>
+                  (e -> d)
+                }
+            .toMap
+            dMap
+          }
       .toMap
+
+      allE2D
+    }
 
 
     def lookupDocumentForElement

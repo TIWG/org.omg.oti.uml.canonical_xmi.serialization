@@ -98,6 +98,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   def computePackageExtentXMI_ID(pkg: UMLPackage[Uml]): Try[Unit] =
     Try(pkg
         .allOwnedElements
+        .+(pkg)
         .filter(resolvedDocumentSet.isElementMapped2Document)
         .foreach(getXMI_ID))
 
