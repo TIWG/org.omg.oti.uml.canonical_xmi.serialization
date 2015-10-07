@@ -52,6 +52,12 @@ import scala.util.Try
 import java.io.InputStream
 import java.net.URI
 
+case class DocumentOpsException[Uml <: UML]
+( dOps: DocumentOps[Uml],
+  message: String,
+  t: java.lang.Throwable )
+  extends java.lang.Exception(message, t)
+
 /**
  * OMG Tool-neutral API extension for document-related processing of OMG UML 2.5 compliant models
  *
