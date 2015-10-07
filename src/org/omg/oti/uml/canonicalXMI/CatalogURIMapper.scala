@@ -56,7 +56,12 @@ import org.apache.xml.resolver.CatalogManager
 import org.apache.xml.resolver.tools.CatalogResolver
 
 import java.io.FileNotFoundException
-import java.lang.Throwable
+import java.lang.{Exception,IllegalArgumentException,Throwable}
+
+case class CatalogURIMapperException
+(message: String,
+ t: Throwable)
+  extends Exception(message, t)
 
 case class CatalogURIMapper( 
     catalogManager: CatalogManager, 
@@ -79,11 +84,13 @@ case class CatalogURIMapper(
   ( resolved: String )
   : Option[URI] = {
 
-    require(
-        appendDocumentExtensionUnlessPresent.getOrElse(".").startsWith("."),
-        "The document extension, when specified, must start with '.'"+
-        s"currently, it is '$appendDocumentExtensionUnlessPresent'")
-        
+    if (!appendDocumentExtensionUnlessPresent.getOrElse(".").startsWith("."))
+      throw CatalogURIMapperException(
+        "The document extension, when specified, must start with '.'",
+        new IllegalArgumentException(
+          s"Illegal value for appendDocumentExtensionUnlessPresent: " +
+          s"'$appendDocumentExtensionUnlessPresent'"))
+
     def ignore( e: Throwable ) = {}
 
     val normalized = new URI( resolved )
@@ -93,8 +100,10 @@ case class CatalogURIMapper(
     val f2 = appendDocumentExtensionUnlessPresent match {
       case None => f1
       case Some(ext) =>
-        if ( normalizedPath.endsWith( ext ) ) f1 
-        else new URL( normalizedPath + ext )
+        if ( normalizedPath.endsWith( ext ) )
+          f1
+        else
+          new URL( normalizedPath + ext )
     }
     
     try {
@@ -107,7 +116,8 @@ case class CatalogURIMapper(
       }
     }
     catch {
-      case e: IOException => ignore( e )
+      case e: IOException =>
+        ignore( e )
       // try another variant.
     }
     try {
@@ -161,22 +171,28 @@ case class CatalogURIMapper(
 
     val rawPath = uri.toString
     val iriPath = 
-      if ( rawPath.endsWith( "#" ) ) rawPath.substring( 0, rawPath.length() - 1 ) 
-      else rawPath
+      if ( rawPath.endsWith( "#" ) )
+        rawPath.substring( 0, rawPath.length() - 1 )
+      else
+        rawPath
     try {
       resolve( iriPath ) match {
         case None =>
           Success( None )
         case Some( resolved ) =>
           resolutionStrategy( resolved ) match {
-            case None                => Success( None )
-            case Some( resolvedURI ) => Success( Some( resolvedURI ) )
+            case None                =>
+              Success( None )
+            case Some( resolvedURI ) =>
+              Success( Some( resolvedURI ) )
           }
       }
     }
     catch {
-      case t: MalformedURLException => Failure( t )
-      case t: IOException           => Failure( t )
+      case t: MalformedURLException =>
+        Failure( CatalogURIMapperException( s"resolveURI(uri=$uri) failed", t ) )
+      case t: IOException           =>
+        Failure( CatalogURIMapperException( s"resolveURI(uri=$uri) failed", t ) )
     }
   }
 }
@@ -201,11 +217,15 @@ object CatalogURIMapper {
     val mapper = new CatalogURIMapper( catalog )
     catalogFiles.foreach { catalogFile => 
       if ( ! catalogFile.exists ) 
-        return Failure( new FileNotFoundException( catalogFile.getAbsolutePath ))
+        return Failure( CatalogURIMapperException(
+          s"createMapperFromCatalogFiles failed",
+          new FileNotFoundException( catalogFile.getAbsolutePath )))
       else 
         mapper.parseCatalog(catalogFile.toURI) match {
-        case Failure( t ) => return Failure( t )
-        case Success( _ ) => ()
+        case Failure( t ) =>
+          return Failure( CatalogURIMapperException("createMapperFromCatalogFiles failed", t ) )
+        case Success( _ ) =>
+          ()
       }
     }
       
@@ -230,8 +250,10 @@ object CatalogURIMapper {
     val mapper = new CatalogURIMapper( catalog )
     catalogURIs.foreach { catalogURI =>
       mapper.parseCatalog(catalogURI) match {
-        case Failure( t ) => return Failure( t )
-        case Success( _ ) => ()
+        case Failure( t ) =>
+          return Failure( CatalogURIMapperException("createMapperFromCatalogURIs failed", t ) )
+        case Success( _ ) =>
+          ()
       }
     }
 
