@@ -117,6 +117,11 @@ case class UnresolvedElementCrossReference[Uml <: UML]
  documentElement: UMLElement[Uml],
  externalReference: UMLElement[Uml])
 
+case class DocumentSetException
+(message: String,
+ t: java.lang.Throwable)
+extends java.lang.Exception(message,t)
+
 /**
  * @todo add support for the possibility that a stereotype tag value may
  *       refer to an element serialized in a different document.
