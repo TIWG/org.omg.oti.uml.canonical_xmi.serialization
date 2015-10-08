@@ -57,6 +57,20 @@ import scalaz.Scalaz._
 import scalaz._
 import java.lang.IllegalArgumentException
 
+case class ResolvedDocumentSetException[Uml <: UML]
+(rds: ResolvedDocumentSet[Uml],
+ message: String,
+ t: java.lang.Throwable)
+extends java.lang.Exception(message, t) {
+
+  /**
+   * This type member is intended to facilitate pattern matching
+   * using a wildcard for the type parameter, i.e., ResolvedDocumentSetException[_]
+   * The type information can then be checked using the UmlType member.
+   */
+  type UmlType = Uml
+}
+
 case class ResolvedDocumentSet[Uml <: UML]
 ( ds: DocumentSet[Uml],
   g: DocumentSet[Uml]#MutableDocumentSetGraph,
@@ -85,8 +99,12 @@ case class ResolvedDocumentSet[Uml <: UML]
   : (String, String) =
     element2mappedDocument(s)
     .fold[(String,String)]{
-      throw new IllegalArgumentException(
-          s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${s.xmiID()})")
+      throw ResolvedDocumentSetException(
+        this,
+        "getStereotype_ID_UUID failed",
+        ds.ops.illegalElementException(
+          s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${s.xmiID()})",
+          s))
     }{
       case d: BuiltInDocument[Uml] =>
         val builtInURI =
@@ -103,8 +121,12 @@ case class ResolvedDocumentSet[Uml <: UML]
         Tuple2(s.xmiID(), s.xmiUUID())
         
       case d: Document[Uml] =>
-        throw new IllegalArgumentException(
-          s"Unrecognized document $d for stereotype ${s.qualifiedName.get} (ID=${s.xmiID()})")
+        throw ResolvedDocumentSetException(
+        this,
+        "getStereotype_ID_UUID failed",
+        ds.ops.illegalElementException(
+          s"Unrecognized document $d for stereotype ${s.qualifiedName.get} (ID=${s.xmiID()})",
+          s))
     }
 
   def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] =
@@ -141,8 +163,12 @@ case class ResolvedDocumentSet[Uml <: UML]
     .find { d =>
       d.scope == pkg }
     .fold[Try[Unit]]{
-      Failure(new IllegalArgumentException(
-          s"Serialization failed: no document found for ${pkg.qualifiedName.get}"))
+      Failure(ResolvedDocumentSetException(
+        this,
+        "serializePkg failed",
+        ds.ops.illegalElementException(
+          s"Serialization failed: no document found for ${pkg.qualifiedName.get}",
+          pkg)))
     }{ d =>
       serialize(d)
     }
@@ -175,8 +201,11 @@ case class ResolvedDocumentSet[Uml <: UML]
 
         val uri = ruri.getOrElse(d.uri)
         Try(new java.io.File(uri)) match {
-          case Failure(f) => Failure(new IllegalArgumentException(
-            s"Cannot serialize document ${d.uri} mapped for save to $ruri: ${f.getMessage}", f))
+          case Failure(f) =>
+            Failure(ResolvedDocumentSetException(
+              this,
+              s"serialize failed: Cannot serialize document ${d.uri} mapped for save to $ruri: ${f.getMessage}",
+              f))
           case Success(furi) =>
             val dir = furi.getParentFile
             dir.mkdirs()
@@ -561,8 +590,10 @@ case class ResolvedDocumentSet[Uml <: UML]
                     } else {
                       val href = dRef.documentURL + "#" + eRefID
                       val externalHRef = dRef match {
-                        case _: SerializableDocument[Uml] => href
-                        case _: BuiltInDocument[Uml] => ds.builtInURIMapper.resolve(href).getOrElse(href)
+                        case _: SerializableDocument[Uml] =>
+                          href
+                        case _: BuiltInDocument[Uml] =>
+                          ds.builtInURIMapper.resolve(href).getOrElse(href)
                       }
 
                       val hrefAttrib: MetaData =
@@ -600,8 +631,10 @@ case class ResolvedDocumentSet[Uml <: UML]
                         } else {
                           val href = dRef.documentURL.toString + "#" + eRefID
                           val externalHRef = dRef match {
-                            case _: SerializableDocument[Uml] => href
-                            case _: BuiltInDocument[Uml] => ds.builtInURIMapper.resolve(href).getOrElse(href)
+                            case _: SerializableDocument[Uml] =>
+                              href
+                            case _: BuiltInDocument[Uml] =>
+                              ds.builtInURIMapper.resolve(href).getOrElse(href)
                           }
                           val hrefAttrib: MetaData =
                             new UnprefixedAttribute(key = "href", value = externalHRef, Null)
@@ -671,13 +704,15 @@ case class ResolvedDocumentSet[Uml <: UML]
           case ((visitedElements, sub_nested, sub_idrefs), subElement) =>
             if (visitedElements.contains(subElement))
               waitGenerateNodeReference(f, subElement) match {
-                case Failure(f) => return Failure(f)
+                case Failure(f) =>
+                  return Failure(f)
                 case Success(subNode) =>
                   Tuple3(visitedElements + subElement, sub_nested, sub_idrefs + (subElement.xmiID() -> subNode))
               }
             else
               callGenerateNodeElement(f, subElement).run match {
-                case Failure(f) => return Failure(f)
+                case Failure(f) =>
+                  return Failure(f)
                 case Success(subNode) =>
                   Tuple3(visitedElements + subElement, sub_nested + (subElement.xmiUUID() -> subNode), sub_idrefs)
               }
@@ -712,7 +747,8 @@ case class ResolvedDocumentSet[Uml <: UML]
               case Failure(t) => return return_ {
                 Failure(t)
               }
-              case Success((es, ns, rs)) => applyGenerateNodeElementsOrSkip(f, xs, es, ns, rs)
+              case Success((es, ns, rs)) =>
+                applyGenerateNodeElementsOrSkip(f, xs, es, ns, rs)
             }
           } yield result
       }

@@ -56,7 +56,15 @@ case class DocumentOpsException[Uml <: UML]
 ( dOps: DocumentOps[Uml],
   message: String,
   t: java.lang.Throwable )
-  extends java.lang.Exception(message, t)
+  extends java.lang.Exception(message, t) {
+
+  /**
+   * This type member is intended to facilitate pattern matching
+   * using a wildcard for the type parameter, i.e., DocumentOpsException[_]
+   * The type information can then be checked using the UmlType member.
+   */
+  type UmlType = Uml
+}
 
 /**
  * OMG Tool-neutral API extension for document-related processing of OMG UML 2.5 compliant models
