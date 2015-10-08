@@ -57,6 +57,13 @@ import java.lang.Integer
 import java.lang.Throwable
 import java.lang.IllegalArgumentException
 
+case class DocumentIDGeneratorException[Uml <: UML]
+(idGenerator: DocumentIDGenerator[Uml],
+ elements: Iterable[UMLElement[Uml]],
+ message: String,
+ t: java.lang.Throwable)
+extends java.lang.Exception(message, t)
+
 /**
  * @tparam Uml
  */
@@ -130,7 +137,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
           for {
             builtIn_d2_id <- to.toolSpecific_id.fold[Try[String]] {
-               Failure(new IllegalArgumentException(s"There should be a tool-specific xmi:id for $db2"))
+               Failure(
+                DocumentIDGeneratorException(
+                  this,
+                  Iterable(from, to),
+                  "getXMI_IDREF_or_HREF_fragment_internal: error",
+                  illegalElementException(s"There should be a tool-specific xmi:id for the 'to' element in $db2", to)))
             }{ id =>
               Success(id)
              }
@@ -153,7 +165,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           getXMI_ID(getMappedOrReferencedElement(to))
 
         case d =>
-          Failure(illegalElementException(s"Unknown document $d for element reference to", to))
+          Failure(
+                DocumentIDGeneratorException(
+                  this,
+                  Iterable(from, to),
+                  "getXMI_IDREF_or_HREF_fragment_internal: error",
+                  illegalElementException(s"Unknown document $d for element reference to", to)))
       }
     }
 
@@ -168,13 +185,23 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     self, {
       resolvedDocumentSet.element2mappedDocument( self )
         .fold[Try[String]] {
-          Failure(illegalElementException("Unknown document for element reference ", self))
+          Failure(
+            DocumentIDGeneratorException(
+                  this,
+                  Iterable(self),
+                  "getXMI_ID error",
+                  illegalElementException("Unknown document for element reference ", self)))
         }{
           case d: BuiltInDocument[Uml] =>
             self
             .toolSpecific_id
             .fold[Try[String]] {
-              Failure(illegalElementException("Element from a BuiltInDocument without xmi:id", self))
+              Failure(
+                DocumentIDGeneratorException(
+                  this,
+                  Iterable(self),
+                  "getXMI_ID error",
+                  illegalElementException("Element from a BuiltInDocument without xmi:id", self)))
             }{ id =>
               Success(id)
             }
@@ -188,7 +215,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
             }
 
           case d =>
-            Failure(illegalElementException(s"Unrecognized document $d for element", self))
+            Failure(
+              DocumentIDGeneratorException(
+                  this,
+                  Iterable(self),
+                  "getXMI_ID error",
+                  illegalElementException(s"Unrecognized document $d for element", self)))
         
       }
     })
@@ -207,13 +239,23 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       self
       .owner
       .fold[Try[String]] {
-        Failure(illegalElementException("Element without an owner is not supported(1)", self))
+        Failure(
+              DocumentIDGeneratorException(
+                  this,
+                  Iterable(self),
+                  "computeID error",
+                  illegalElementException("Element without an owner is not supported(1)", self)))
       }{ owner =>
         self.getContainingMetaPropertyEvaluator()(this) match {
           case Failure(f) =>
             Failure(f)
           case Success(None) =>
-            Failure(illegalElementException("Element without an owner is not supported(2)", self))
+            Failure(
+              DocumentIDGeneratorException(
+                  this,
+                  Iterable(self),
+                  "computeID error",
+                  illegalElementException("Element without an owner is not supported(2)", self)))
           case Success(Some(cf)) =>
             getXMI_ID(owner)
             .flatMap { ownerID =>
@@ -222,7 +264,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                 if (c.nonEmpty)
                   c.head((owner, ownerID, cf, self))
                 else
-                  Failure(illegalElementException("Unsupported", self))
+                  Failure(
+                    DocumentIDGeneratorException(
+                        this,
+                        Iterable(self),
+                        "computeID error",
+                        illegalElementException("Unsupported", self)))
             }
         }
       }
@@ -236,7 +283,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       root
       .name
       .fold[Try[String]] {
-        Failure(illegalElementException("Document package scope must be explicitly named", root))
+        Failure(
+              DocumentIDGeneratorException(
+                  this,
+                  Iterable(root),
+                  "rule0 error",
+                  illegalElementException("Document package scope must be explicitly named", root)))
       }{
         n =>
         Success(IDGenerator.xmlSafeID(n))
@@ -251,18 +303,33 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       iv
       .instance
       .fold[Try[String]] {
-        Failure(illegalElementException("InstanceValue without InstanceSpecification is not supported", iv))
+        Failure(
+              DocumentIDGeneratorException(
+                  this,
+                  Iterable(owner, iv),
+                  "crule1 error",
+                  illegalElementException("InstanceValue without InstanceSpecification is not supported", iv)))
       }{ is =>
         is
         .name
         .fold[Try[String]] {
-          Failure(illegalElementException("InstanceValue must refer to a named InstanceSpecification", is))
+          Failure(
+              DocumentIDGeneratorException(
+                  this,
+                  Iterable(owner, iv, is),
+                  "crule1 error",
+                  illegalElementException("InstanceValue must refer to a named InstanceSpecification", is)))
         }{ nInstance =>
           iv.getContainingMetaPropertyEvaluator()(this) match {
             case Failure(t) =>
               Failure(t)
             case Success(None) =>
-              Failure(illegalElementException("Element without an owner is not supported(3)", iv))
+              Failure(
+                DocumentIDGeneratorException(
+                    this,
+                    Iterable(owner, iv, is),
+                    "crule1 error",
+                    illegalElementException("Element without an owner is not supported(3)", iv)))
             case Success(Some(cf)) =>
               Success(ownerID + "_" + IDGenerator.xmlSafeID(cf.propertyName + "." + nInstance))
           }
@@ -282,7 +349,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           s
           .definingFeature
           .fold[Try[String]] {
-            Failure(illegalElementException("Slot must have a defining StructuralFeature", s))
+            Failure(
+              DocumentIDGeneratorException(
+                  this,
+                  Iterable(owner, fv),
+                  "crule1a error",
+                  illegalElementException("Slot must have a defining StructuralFeature", s)))
           }{ sf =>
             val slotValues = s.value.toList
             if (sf.upper > 1)
@@ -308,12 +380,22 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               case ( Failure( t ), _ ) =>
                 Failure( t )
               case ( _, None ) =>
-                Failure( illegalElementException( "Parameter must have a type", p ) )
+                Failure(
+                  DocumentIDGeneratorException(
+                      this,
+                      Iterable(owner, fv, p),
+                      "crule1a error",
+                      illegalElementException( "Parameter must have a type", p ) ))
               case ( Success( s ), Some( t ) ) =>
                 t
                 .name
                 .fold[Try[String]] {
-                  Failure( illegalElementException( "Type must have a name", t ) )
+                  Failure(
+                    DocumentIDGeneratorException(
+                        this,
+                        Iterable(owner, fv, p, t),
+                        "crule1a error",
+                         illegalElementException( "Type must have a name", t ) ) )
                 }{ tn =>
                   Success( s + "_" + IDGenerator.xmlSafeID( tn ) )
                 }
@@ -331,7 +413,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               s
               .definingFeature
               .fold[Try[String]] {
-                Failure(illegalElementException("Slot must have a defining StructuralFeature", s))
+                Failure(
+                    DocumentIDGeneratorException(
+                        this,
+                        Iterable(is, s),
+                        "crule1a error",
+                         illegalElementException("Slot must have a defining StructuralFeature", s)))
               }{ sf =>
                 if (sf.upper == 1)
                   Success("")
@@ -412,7 +499,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         case List(relTarget) =>
           getXMI_IDREF_or_HREF_fragment(owner, relTarget) match {
             case Failure(t) =>
-              Failure(illegalElementException(s"Binary DirectedRelationship must have a target - $t", dr))
+              Failure(
+                DocumentIDGeneratorException(
+                  this,
+                  Iterable(owner, dr),
+                  "crule3 error",
+                  illegalElementException(s"Binary DirectedRelationship must have a target - $t", dr)))
             case Success(tid) =>
               val targetID =
                 resolvedDocumentSet.element2mappedDocument(relTarget) match {
@@ -425,7 +517,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               Success(ownerID + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + targetID)
           }
         case _ =>
-          Failure(illegalElementException("Binary DirectedRelationship must have a target", dr))
+          Failure(
+            DocumentIDGeneratorException(
+              this,
+              Iterable(owner, dr),
+              "crule3 error",
+              illegalElementException("Binary DirectedRelationship must have a target", dr)))
       }
   }
 
@@ -437,12 +534,22 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       s
       .definingFeature
       .fold[Try[String]] {
-        Failure(illegalElementException("Slot must have a defining StructuralFeature", s))
+        Failure(
+            DocumentIDGeneratorException(
+              this,
+              Iterable(owner, s),
+              "crule4 error",
+              illegalElementException("Slot must have a defining StructuralFeature", s)))
       }{ sf =>
         sf
         .name
         .fold[Try[String]] {
-          Failure(illegalElementException("Slot's defining StructuralFeature must be named", sf))
+          Failure(
+            DocumentIDGeneratorException(
+              this,
+              Iterable(owner, s),
+              "crule4 error",
+              illegalElementException("Slot's defining StructuralFeature must be named", sf)))
         }{ sfn =>
           Success(ownerID + "." + IDGenerator.xmlSafeID(sfn))
         }
@@ -474,7 +581,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     i
     .location
     .fold[Try[String]] {
-      Failure(new IllegalArgumentException("An Image must have a non-null location URL"))
+      Failure(
+        DocumentIDGeneratorException(
+          this,
+          Iterable(i),
+          "getImageLocationURL error",
+          new IllegalArgumentException("An Image must have a non-null location URL")))
     }{ loc =>
         try {
           val url = new URL(loc) toString;
@@ -482,9 +594,19 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         }
         catch {
           case t: MalformedURLException =>
-            Failure(t)
+            Failure(
+              DocumentIDGeneratorException(
+                this,
+                Iterable(i),
+                "getImageLocationURL error",
+                t))
           case t: Throwable =>
-            Failure(t)
+            Failure(
+              DocumentIDGeneratorException(
+                this,
+                Iterable(i),
+                "getImageLocationURL error",
+                t))
         }
     }
 
