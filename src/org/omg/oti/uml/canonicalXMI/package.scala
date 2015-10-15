@@ -75,4 +75,11 @@ package object canonicalXMI {
   : UMLError.UException =
     new DocumentIDGeneratorException(idGenerator, elements, message, cause)
 
+  def documentOpsException[Uml <: UML]
+  ( dOps: DocumentOps[Uml],
+    message: String,
+    cause: Option[java.lang.Throwable] = None)
+  : UMLError.UException =
+    new DocumentOpsException(dOps, message, cause)
+
 }
