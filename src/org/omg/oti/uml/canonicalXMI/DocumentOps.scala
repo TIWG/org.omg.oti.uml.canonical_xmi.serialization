@@ -48,11 +48,11 @@ import scala.{Option,None}
 import scala.Predef.String
 import scala.collection.immutable._
 import scala.reflect.runtime.universe._
+import scalaz._
 
 import java.io.InputStream
 import java.net.URI
 
-import scalaz.ValidationNel
 
 class DocumentOpsException[Uml <: UML]
 ( dOps: DocumentOps[Uml],
@@ -83,14 +83,18 @@ trait DocumentOps[Uml <: UML] {
    * @param lurl The `LoadURL` coordinates of the external document to load
    * @return The URI where the document can be accesssed as an external resource
    */
-  def getExternalDocumentURL(lurl: Uml#LoadURL): URI
+  def getExternalDocumentURL
+  (lurl: Uml#LoadURL)
+  : \/[NonEmptyList[UMLError.UException], URI]
 
    /**
     * Open an input stream on the external document to load
     * @param lurl The `LoadURL` coordinates of the external document to load
     * @return an input stream for reading the XMI contents of the external document to load
     */
-   def openExternalDocumentStreamForImport(lurl: Uml#LoadURL): InputStream
+   def openExternalDocumentStreamForImport
+   (lurl: Uml#LoadURL)
+   : \/[NonEmptyList[UMLError.UException], InputStream]
 
   /**
    * Create a SerializableDocument for a root package scope created as part of a document import process
@@ -113,7 +117,7 @@ trait DocumentOps[Uml <: UML] {
     documentURL: Uml#LoadURL,
     scope: UMLPackage[Uml])
    (implicit ds: DocumentSet[Uml])
-   : ValidationNel[UMLError.UException, SerializableDocument[Uml]]
+   : \/[NonEmptyList[UMLError.UException], SerializableDocument[Uml]]
 
   /**
    * Create a BuiltInDocument for a root package scope that is part of a tool-specific implementation
@@ -129,7 +133,7 @@ trait DocumentOps[Uml <: UML] {
    */
    def createBuiltInDocumentFromBuiltInRootPackage
    (root: UMLPackage[Uml])
-   : Option[BuiltInDocument[Uml]]
+   : \/[NonEmptyList[UMLError.UException], BuiltInDocument[Uml]]
 
   /**
    * Create a SerializableDocument for an existing root package scope as long as the root package
@@ -148,7 +152,7 @@ trait DocumentOps[Uml <: UML] {
    */
    def createSerializableDocumentFromExistingRootPackage
    (root: UMLPackage[Uml])
-   : Option[SerializableDocument[Uml]]
+   : \/[NonEmptyList[UMLError.UException], SerializableDocument[Uml]]
 
   /**
    * Create an initial DocumentSet graph with built-in document nodes/edges for OMG UML 2.5
@@ -167,7 +171,7 @@ trait DocumentOps[Uml <: UML] {
   ( implicit
     nodeT: TypeTag[Document[Uml]],
     edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
-  : ValidationNel[UMLError.UException, DocumentSet[Uml]]
+  : \/[NonEmptyList[UMLError.UException], DocumentSet[Uml]]
 
   /**
    * Create a DocumentSet graph for document nodes (serializable or built-in) and inter-document edges
@@ -195,7 +199,7 @@ trait DocumentOps[Uml <: UML] {
     ops: UMLOps[Uml],
     nodeT: TypeTag[Document[Uml]],
     edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
-  : ValidationNel[UMLError.UException, DocumentSet[Uml]]
+  : \/[NonEmptyList[UMLError.UException], DocumentSet[Uml]]
    
   /**
    * Add a serializable document as a new node to an existing document set graph
@@ -207,6 +211,6 @@ trait DocumentOps[Uml <: UML] {
   def addDocument
   (ds: DocumentSet[Uml],
    d: SerializableDocument[Uml])
-  : ValidationNel[UMLError.UException, DocumentSet[Uml]]
+  : \/[NonEmptyList[UMLError.UException], DocumentSet[Uml]]
 
 }

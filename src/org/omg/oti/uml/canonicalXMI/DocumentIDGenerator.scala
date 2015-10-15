@@ -144,19 +144,22 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         case db2: BuiltInDocument[Uml] =>
           require(d1 != db2)
           // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
-          for {
-            builtIn_d2_id <- to.toolSpecific_id.fold[ValidationNel[UMLError.UException, String]] {
-              documentIDGeneratorException(
-                this,
-                Iterable(from, to),
-                s"getXMI_IDREF_or_HREF_fragment_internal: error: There should be a tool-specific xmi:id for the 'to' element in $db2")
-              .failureNel
+          val bid = for {
+            builtIn_d2_id <- to.toolSpecific_id.fold[\/[NonEmptyList[UMLError.UException], String]] {
+              -\/(
+                NonEmptyList(
+                  documentIDGeneratorException(
+                    this,
+                    Iterable(from, to),
+                    s"getXMI_IDREF_or_HREF_fragment_internal: error: There should be a tool-specific xmi:id for the 'to' element in $db2")))
             }{ id =>
-              id.successNel
+              \/-(id)
             }
 
+            builtInURI <- documentOps.getExternalDocumentURL(db2.documentURL)
+
             builtInURITo =
-              documentOps.getExternalDocumentURL(db2.documentURL)
+              builtInURI
               .resolve("#" + builtIn_d2_id)
               .toString
 
@@ -168,6 +171,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
             // It's not needed to add the prefix since it's already included in the computed ID
             fragment = IDGenerator.xmlSafeID(mappedURITo.substring(fragmentIndex + 1))
           } yield IDGenerator.xmlSafeID(fragment)
+
+          bid.validation
 
         case _: SerializableDocument[Uml] =>
           getXMI_ID(getMappedOrReferencedElement(to))

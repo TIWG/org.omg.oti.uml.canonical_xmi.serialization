@@ -92,45 +92,58 @@ case class ResolvedDocumentSet[Uml <: UML]
   def getStereotype_ID_UUID
   (s: UMLStereotype[Uml])
   (implicit idg: IDGenerator[Uml], dOps: DocumentOps[Uml])
-  : ValidationNel[UMLError.UException, (String, String)] =
-    element2mappedDocument(s)
-    .fold[ValidationNel[UMLError.UException, (String, String)]]{
-      resolvedDocumentSetException(
-        this,
-        "getStereotype_ID_UUID failed",
-        UMLError
-        .illegalElementError[Uml, UMLStereotype[Uml]](
-          s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${s.xmiID()})",
-          Iterable(s)).some)
-      .failureNel
-    }{
-      case d: BuiltInDocument[Uml] =>
-        val builtInURI =
-          dOps.getExternalDocumentURL(d.documentURL)
-          .resolve("#" + s.xmiID())
-          .toString
-        val mappedURI = ds.builtInURIMapper.resolve(builtInURI).getOrElse(builtInURI)
-        val fragmentIndex = mappedURI.lastIndexOf('#')
-        require(fragmentIndex > 0)
-        val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
-        Tuple2(fragment, "omg.org." + d.nsPrefix.toLowerCase(java.util.Locale.ROOT) + fragment)
-        .successNel
+  : ValidationNel[UMLError.UException, (String, String)] = {
+    s
+    .xmiID()
+    .disjunction
+    .flatMap { _id =>
+      s
+      .xmiUUID()
+      .disjunction
+      .flatMap { _uuid =>
 
-      case d: SerializableDocument[Uml] =>
-        (s.xmiID() |@| s.xmiUUID()) { (_id, _uuid) =>
-          Tuple2(_id, _uuid)
+        element2mappedDocument(s)
+        .fold[\/[NonEmptyList[UMLError.UException], (String, String)]](
+          -\/(
+            NonEmptyList(
+              resolvedDocumentSetException(
+                this,
+                "getStereotype_ID_UUID failed",
+                UMLError
+                .illegalElementError[Uml, UMLStereotype[Uml]](
+                  s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
+                  Iterable(s)).some)))
+        ){
+          case d: BuiltInDocument[Uml] =>
+            dOps
+            .getExternalDocumentURL(d.documentURL)
+            .flatMap { url =>
+              val builtInURI = url.resolve("#" + _id).toString
+              val mappedURI = ds.builtInURIMapper.resolve(builtInURI).getOrElse(builtInURI)
+              val fragmentIndex = mappedURI.lastIndexOf('#')
+              require(fragmentIndex > 0)
+              val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
+              \/-(Tuple2(fragment, "omg.org." + d.nsPrefix.toLowerCase(java.util.Locale.ROOT) + fragment))
+            }
+
+          case d: SerializableDocument[Uml] =>
+            \/-(Tuple2(_id, _uuid))
+
+          case d: Document[Uml] =>
+            -\/(
+              NonEmptyList(
+                resolvedDocumentSetException(
+                  this,
+                  "getStereotype_ID_UUID failed",
+                  UMLError
+                    .illegalElementError[Uml, UMLStereotype[Uml]](
+                    s"Unrecognized document $d for stereotype ${s.qualifiedName.get} (ID=${_id})",
+                    Iterable(s)).some)))
         }
-        
-      case d: Document[Uml] =>
-        resolvedDocumentSetException(
-          this,
-          "getStereotype_ID_UUID failed",
-          UMLError
-          .illegalElementError[Uml, UMLStereotype[Uml]](
-            s"Unrecognized document $d for stereotype ${s.qualifiedName.get} (ID=${s.xmiID()})",
-            Iterable(s)).some)
-        .failureNel
+      }
     }
+    .validation
+  }
 
   def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] =
     element2mappedDocument(e)

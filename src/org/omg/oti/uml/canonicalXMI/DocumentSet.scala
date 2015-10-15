@@ -405,29 +405,33 @@ object DocumentSet {
               "Document-level packages must have an effective URI for export",
               anonymousRoots)))
         else {
-          val serializableDocuments = for {
-            root <- roots
-            sd <- createSerializableDocumentFromExistingRootPackage(root)
-          } yield sd
 
-          createDocumentSet(
-              serializableDocuments,
-              builtInDocuments,
-              builtInDocumentEdges,
-              documentURIMapper,
-              builtInURIMapper,
-              aggregate)
-          .disjunction
-          .flatMap { ds =>
+          val r0: \/[NonEmptyList[UMLError.UException], Set[SerializableDocument[Uml]]] =
+            \/-(Set())
+          val rN: \/[NonEmptyList[UMLError.UException], Set[SerializableDocument[Uml]]] =
+            (r0 /: roots) { (ri, root) =>
+              ri +++ createSerializableDocumentFromExistingRootPackage(root).map(Set(_))
+            }
 
-            ds
-              .resolve(
-                ignoreCrossReferencedElementFilter,
-                unresolvedElementMapper)
-              .disjunction
+          rN
+            .flatMap { serializableDocuments =>
+              createDocumentSet(
+                serializableDocuments,
+                builtInDocuments,
+                builtInDocumentEdges,
+                documentURIMapper,
+                builtInURIMapper,
+                aggregate)
+                .flatMap { ds =>
 
-          }
+                  ds
+                    .resolve(
+                      ignoreCrossReferencedElementFilter,
+                      unresolvedElementMapper)
+                    .disjunction
 
+                }
+            }
         }
 
         result
