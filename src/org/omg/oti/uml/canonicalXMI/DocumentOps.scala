@@ -39,24 +39,26 @@
  */
 package org.omg.oti.uml.canonicalXMI
 
+import org.omg.oti.uml.UMLError
 import org.omg.oti.uml.xmi._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations._
 
-import scala.{Option}
+import scala.{Option,None}
 import scala.Predef.String
 import scala.collection.immutable._
 import scala.reflect.runtime.universe._
-import scala.util.Try
 
 import java.io.InputStream
 import java.net.URI
 
-case class DocumentOpsException[Uml <: UML]
+import scalaz.ValidationNel
+
+class DocumentOpsException[Uml <: UML]
 ( dOps: DocumentOps[Uml],
-  message: String,
-  t: java.lang.Throwable )
-  extends java.lang.Exception(message, t) {
+  override val message: String,
+  override val cause: Option[java.lang.Throwable] = None)
+  extends UMLError.UException(message, cause) {
 
   /**
    * This type member is intended to facilitate pattern matching
@@ -111,7 +113,7 @@ trait DocumentOps[Uml <: UML] {
     documentURL: Uml#LoadURL,
     scope: UMLPackage[Uml])
    (implicit ds: DocumentSet[Uml])
-   : Try[SerializableDocument[Uml]]
+   : ValidationNel[UMLError.UException, SerializableDocument[Uml]]
 
   /**
    * Create a BuiltInDocument for a root package scope that is part of a tool-specific implementation
@@ -165,7 +167,7 @@ trait DocumentOps[Uml <: UML] {
   ( implicit
     nodeT: TypeTag[Document[Uml]],
     edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
-  : Try[DocumentSet[Uml]]
+  : ValidationNel[UMLError.UException, DocumentSet[Uml]]
 
   /**
    * Create a DocumentSet graph for document nodes (serializable or built-in) and inter-document edges
@@ -193,7 +195,7 @@ trait DocumentOps[Uml <: UML] {
     ops: UMLOps[Uml],
     nodeT: TypeTag[Document[Uml]],
     edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
-  : Try[DocumentSet[Uml]]
+  : ValidationNel[UMLError.UException, DocumentSet[Uml]]
    
   /**
    * Add a serializable document as a new node to an existing document set graph
@@ -205,6 +207,6 @@ trait DocumentOps[Uml <: UML] {
   def addDocument
   (ds: DocumentSet[Uml],
    d: SerializableDocument[Uml])
-  : Try[DocumentSet[Uml]]
+  : ValidationNel[UMLError.UException, DocumentSet[Uml]]
 
 }

@@ -5,7 +5,6 @@ import net.virtualvoid.sbt.graph.Plugin.graphSettings
 import sbt.Keys._
 import sbt._
 import com.typesafe.sbt.packager.universal.UniversalPlugin.autoImport._
-import com.typesafe.sbteclipse.plugin.EclipsePlugin._
 import scala.xml.{Attribute, Elem, MetaData, Node, NodeSeq, Null, Text}
 
 object OTICanonicalXMI extends Build {
@@ -25,8 +24,6 @@ object OTICanonicalXMI extends Build {
     organization := "gov.nasa.jpl.mbee.omg.oti",
     organizationName := "JPL, Caltech & Object Management Group",
     organizationHomepage := Some(url("http://solitaire.omg.org/browse/TIWG")),
-
-    EclipseKeys.executionEnvironment := Some(EclipseExecutionEnvironment.JavaSE17),
 
     // include repositories used in module configurations into the POM repositories section
     pomAllRepositories := true,

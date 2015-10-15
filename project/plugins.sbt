@@ -4,9 +4,9 @@ resolvers ++= List(
   "2.11.7 plugins" at "https://oss.sonatype.org/content/repositories/orgscala-lang-1230/org/"
 )
 
-// https://github.com/typesafehub/sbteclipse`
-addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "4.0.0")
-    
+
+
+
 resolvers += Resolver.url("sbt-license-plugin-releases", url("http://dl.bintray.com/banno/oss"))(Resolver.ivyStylePatterns)
 
 // https://github.com/Banno/sbt-license-plugin
@@ -32,6 +32,9 @@ addSbtPlugin("org.xerial.sbt" % "sbt-pack" % "0.6.12")
 
 // https://github.com/arktekk/sbt-aether-deploy
 addSbtPlugin("no.arktekk.sbt" % "aether-deploy" % "0.14")
+
+// https://github.com/rtimush/sbt-updates
+addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.1.8")
 
 // https://github.com/sbt/sbt-native-packager
 addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.0.2")

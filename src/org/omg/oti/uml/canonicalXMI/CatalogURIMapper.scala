@@ -39,165 +39,166 @@
  */
 package org.omg.oti.uml.canonicalXMI
 
-import java.io.File
-import java.io.IOException
-import java.net.MalformedURLException
-import java.net.URI
-import java.net.URL
+import org.omg.oti.uml.UMLError
 
-import scala.{Boolean,Int,Option,None,Some,StringContext,Unit}
-import scala.Predef.{require,String}
+import java.io.{File, FileNotFoundException, IOException}
+import java.lang.{Exception, IllegalArgumentException, Throwable}
+import java.net.{MalformedURLException, URI, URL}
+
+import org.omg.oti.uml.read.api.UML
+
+import scala.{Boolean, Int, Option, None, Some, StringContext, Unit}
+import scala.Predef.{require, String}
 import scala.collection.immutable._
-import scala.util.Failure
-import scala.util.Success
-import scala.util.Try
+
+import scalaz._, Scalaz._, syntax.std._
+
 import org.apache.xml.resolver.Catalog
 import org.apache.xml.resolver.CatalogManager
 import org.apache.xml.resolver.tools.CatalogResolver
 
-import java.io.FileNotFoundException
-import java.lang.{Exception,IllegalArgumentException,Throwable}
+class CatalogURIMapperException
+(override val message: String,
+ override val cause: Option[Throwable] = None)
+  extends UMLError.UException(message, cause)
 
-case class CatalogURIMapperException
-(message: String,
- t: Throwable)
-  extends Exception(message, t)
+case class CatalogURIMapper(
+                             catalogManager: CatalogManager,
+                             catalogResolver: CatalogResolver,
+                             catalog: Catalog) {
 
-case class CatalogURIMapper( 
-    catalogManager: CatalogManager, 
-    catalogResolver: CatalogResolver, 
-    catalog: Catalog ) {
+  def this(catalogManager: CatalogManager,
+           catalogResolver: CatalogResolver) =
+    this(catalogManager, catalogResolver, catalogResolver.getCatalog)
 
-  def this( 
-      catalogManager: CatalogManager, 
-      catalogResolver: CatalogResolver ) =
-    this( catalogManager, catalogResolver, catalogResolver.getCatalog )
+  def this(catalogManager: CatalogManager) =
+    this(catalogManager, new CatalogResolver(catalogManager))
 
-  def this( catalogManager: CatalogManager ) =
-    this( catalogManager, new CatalogResolver( catalogManager ) )
-
-  def parseCatalog( catalogURI: URI ): Try[Unit] =
-    Try(catalog.parseCatalog( catalogURI.toURL ))
+  def parseCatalog(catalogURI: URI)
+  : ValidationNel[UMLError.UException, Unit] =
+    scala.util.Try(catalog.parseCatalog(catalogURI.toURL))
+      .cata(
+        success = (s: Unit) => s.successNel[UMLError.UException],
+        failure = (t: java.lang.Throwable) => catalogURIMapperException(s"failed to parse catalog: $catalogURI", Some(t)).failureNel
+      )
 
   def loadResolutionStrategy
-  ( appendDocumentExtensionUnlessPresent: Option[String] )
-  ( resolved: String )
-  : Option[URI] = {
+  (appendDocumentExtensionUnlessPresent: Option[String])
+  (resolved: String)
+  : ValidationNel[UMLError.UException, Option[URI]] =
 
     if (!appendDocumentExtensionUnlessPresent.getOrElse(".").startsWith("."))
-      throw CatalogURIMapperException(
+      catalogURIMapperException(
         "The document extension, when specified, must start with '.'",
         new IllegalArgumentException(
           s"Illegal value for appendDocumentExtensionUnlessPresent: " +
-          s"'$appendDocumentExtensionUnlessPresent'"))
+            s"'$appendDocumentExtensionUnlessPresent'").some).failureNel
 
-    def ignore( e: Throwable ) = {}
+    else
 
-    val normalized = new URI( resolved )
-    val normalizedPath = normalized.toString
+      scala.util.Try({
+        val normalized = new URI(resolved)
+        val normalizedPath = normalized.toString
 
-    val f1 = new URL( normalizedPath )
-    val f2 = appendDocumentExtensionUnlessPresent match {
-      case None => f1
-      case Some(ext) =>
-        if ( normalizedPath.endsWith( ext ) )
-          f1
-        else
-          new URL( normalizedPath + ext )
-    }
-    
-    try {
+        val f1 = new URL(normalizedPath)
+        val f2 = appendDocumentExtensionUnlessPresent.fold[URL](f1) { ext =>
+          if ( normalizedPath.endsWith( ext ) )
+            f1
+          else
+            new URL( normalizedPath + ext )
+        }
+        (f1, f2)
+      })
+        .cata(
+          success = (f12: (URL, URL))=> loadResolutionStrategyPair(f12._1, f12._2),
+          failure = (t: java.lang.Throwable) => catalogURIMapperException(s"failed to parse '$resolved' as a URL", Some(t)).failureNel
+        )
+
+  def loadResolutionStrategyPair
+  (f1: URL, f2: URL)
+  : ValidationNel[UMLError.UException, Option[URI]] =
+    scala.util.Try(
       for {
-        is <- Option.apply( f2.openStream )
+        is <- Option.apply(f2.openStream)
         if is.available() > 0
-      } {
+      } yield {
         is.close()
-        return Some( f2.toURI )
-      }
-    }
-    catch {
-      case e: IOException =>
-        ignore( e )
-      // try another variant.
-    }
-    try {
-      for {
-        is <- Option.apply( f1.openStream() )
-        if is.available() > 0
-      } {
-        is.close()
-        return Some( f1.toURI )
-      }
-    }
-    catch {
-      case e: IOException => ignore( e )
-      // try another variant.
-    }
-    None
-  }
+        f2.toURI
+      })
+      .cata(
+        success = (r: Option[URI]) => r.successNel,
+        failure = (_: java.lang.Throwable) =>
+          scala.util.Try(
+            for {
+              is <- Option.apply(f1.openStream())
+              if is.available() > 0
+            } yield {
+              is.close()
+              f1.toURI
+            })
+            .cata(
+              success = (r: Option[URI]) => r.successNel,
+              failure = (_: java.lang.Throwable) => Option.empty[URI].successNel[UMLError.UException])
+      )
 
-  def saveResolutionStrategy( resolved: String ): Option[URI] = {
-    val normalized = new URI( resolved )
+  def saveResolutionStrategy(resolved: String): Option[URI] = {
+    val normalized = new URI(resolved)
     val normalizedPath = normalized.toString
-    val f1 = new URL( normalizedPath )
+    val f1 = new URL(normalizedPath)
     val outputFile =
-      if ( resolved.startsWith( "file:" ) ) new File( resolved.substring( 5 ) )
-      else new File( resolved )
+      if (resolved.startsWith("file:")) new File(resolved.substring(5))
+      else new File(resolved)
     outputFile.getParentFile match {
       case null => None
       case outputDir =>
-        if ( !outputDir.exists )
+        if (!outputDir.exists)
           outputDir.mkdirs
 
-        if ( outputDir.exists && outputDir.isDirectory && outputDir.canWrite )
-          Some( f1.toURI )
+        if (outputDir.exists && outputDir.isDirectory && outputDir.canWrite)
+          Some(f1.toURI)
         else
           None
     }
   }
 
-  def resolve( uri: String ): Option[String] =
-    catalog.resolveURI( uri ) match {
-    case null => None
-    case resolved => Some( resolved )
-  }
-  
-  def resolveURI( 
-      uri: URI, 
-      resolutionStrategy: ( String ) => Option[URI] ): 
-      Try[Option[URI]] = {
+  def resolve(uri: String): Option[String] =
+    catalog.resolveURI(uri) match {
+      case null => None
+      case resolved => Some(resolved)
+    }
 
-    def ignore( e: Throwable ) = {}
+  def resolveURI
+  ( uri: URI,
+    resolutionStrategy: (String) => Option[URI])
+  : ValidationNel[UMLError.UException, Option[URI]] = {
 
     val rawPath = uri.toString
-    val iriPath = 
-      if ( rawPath.endsWith( "#" ) )
-        rawPath.substring( 0, rawPath.length() - 1 )
+    val iriPath =
+      if (rawPath.endsWith("#"))
+        rawPath.substring(0, rawPath.length() - 1)
       else
         rawPath
     try {
-      resolve( iriPath ) match {
-        case None =>
-          Success( None )
-        case Some( resolved ) =>
-          resolutionStrategy( resolved ) match {
-            case None                =>
-              Success( None )
-            case Some( resolvedURI ) =>
-              Success( Some( resolvedURI ) )
-          }
+      Option.apply(resolve(iriPath))
+      .fold[ValidationNel[UMLError.UException, Option[URI]]](None.successNel) {
+      resolved =>
+        resolved.fold[ValidationNel[UMLError.UException, Option[URI]]](None.successNel) { r =>
+          resolutionStrategy(r).successNel
+        }
       }
     }
     catch {
       case t: MalformedURLException =>
-        Failure( CatalogURIMapperException( s"resolveURI(uri=$uri) failed", t ) )
-      case t: IOException           =>
-        Failure( CatalogURIMapperException( s"resolveURI(uri=$uri) failed", t ) )
+        catalogURIMapperException(s"resolveURI(uri=$uri) failed", t.some).failureNel
+      case t: IOException =>
+        catalogURIMapperException(s"resolveURI(uri=$uri) failed", t.some).failureNel
     }
   }
 }
 
 object CatalogURIMapper {
+
+  type CatalogURIMapperAdd = (CatalogURIMapper, => CatalogURIMapper) => CatalogURIMapper
 
   /**
    * Creates a CatalogURIMapper from Catalog files.
@@ -206,30 +207,27 @@ object CatalogURIMapper {
    * @param verbosity
    * @return
    */
-  def createMapperFromCatalogFiles( 
-      catalogFiles: Seq[File], 
-      verbosity: Int = 0 ): 
-      Try[CatalogURIMapper] = {
-    val catalog = new CatalogManager() 
+  def createMapperFromCatalogFiles
+  ( catalogFiles: Seq[File],
+    verbosity: Int = 0)
+  : ValidationNel[UMLError.UException, CatalogURIMapper] = {
+    val catalog = new CatalogManager()
     catalog.setUseStaticCatalog(false)
     catalog.setRelativeCatalogs(true)
     catalog.setVerbosity(verbosity)
-    val mapper = new CatalogURIMapper( catalog )
-    catalogFiles.foreach { catalogFile => 
-      if ( ! catalogFile.exists ) 
-        return Failure( CatalogURIMapperException(
+    val mapper = new CatalogURIMapper(catalog)
+    val c0: ValidationNel[UMLError.UException, CatalogURIMapper] = mapper.successNel
+    val cN: ValidationNel[UMLError.UException, CatalogURIMapper] =
+      ( c0 /: catalogFiles) { ( ci, catalogFile ) =>
+      if (!catalogFile.exists)
+        ci +++ catalogURIMapperException(
           s"createMapperFromCatalogFiles failed",
-          new FileNotFoundException( catalogFile.getAbsolutePath )))
-      else 
-        mapper.parseCatalog(catalogFile.toURI) match {
-        case Failure( t ) =>
-          return Failure( CatalogURIMapperException("createMapperFromCatalogFiles failed", t ) )
-        case Success( _ ) =>
-          ()
-      }
+          new FileNotFoundException(catalogFile.getAbsolutePath).some).failureNel
+      else
+        ci +++ mapper.parseCatalog(catalogFile.toURI).map( _ => mapper)
     }
-      
-    Success( mapper )
+
+    cN
   }
 
   /**
@@ -239,25 +237,30 @@ object CatalogURIMapper {
    * @param verbosity
    * @return
    */
-  def createMapperFromCatalogURIs( 
-      catalogURIs: Seq[URI], 
-      verbosity: Int = 0 ): 
-      Try[CatalogURIMapper] = {
+  def createMapperFromCatalogURIs
+  ( catalogURIs: Seq[URI],
+    verbosity: Int = 0)
+  : ValidationNel[UMLError.UException, CatalogURIMapper] = {
     val catalog = new CatalogManager()
     catalog.setUseStaticCatalog(false)
     catalog.setRelativeCatalogs(true)
     catalog.setVerbosity(verbosity)
-    val mapper = new CatalogURIMapper( catalog )
-    catalogURIs.foreach { catalogURI =>
-      mapper.parseCatalog(catalogURI) match {
-        case Failure( t ) =>
-          return Failure( CatalogURIMapperException("createMapperFromCatalogURIs failed", t ) )
-        case Success( _ ) =>
-          ()
-      }
+    val mapper = new CatalogURIMapper(catalog)
+    val c0: ValidationNel[UMLError.UException, CatalogURIMapper] = mapper.successNel
+    val cN: ValidationNel[UMLError.UException, CatalogURIMapper] =
+      ( c0 /: catalogURIs) { ( ci, catalogURI ) =>
+      ci +++ mapper.parseCatalog(catalogURI).map( _ => mapper)
     }
 
-    Success( mapper )
+    cN
   }
-    
+
+
+  // @todo is this a semigroup? if not, then what's a better way of achieving the desired result?
+
+  implicit def CatalogURIMapperSemigroup: Semigroup[CatalogURIMapper] =
+    new Semigroup[CatalogURIMapper] {
+      def append(x: CatalogURIMapper, y: => CatalogURIMapper): CatalogURIMapper = x
+    }
+
 }

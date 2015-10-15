@@ -39,6 +39,12 @@
  */
 package org.omg.oti.uml
 
+import org.omg.oti.uml.read.api.{UMLElement, UML}
+
+import scala.collection.immutable.Iterable
+import scala.{Option,None}
+import scala.Predef.String
+
 /**
  * = Generic OTI-based facilities for OMG XMI Documents and OMG MOF Extents =
  *
@@ -47,5 +53,26 @@ package org.omg.oti.uml
  *   - [[org.omg.oti.uml.canonicalXMI `DocumentOps`]]: API for OMG XMI Document production (serialization)
  */
 package object canonicalXMI {
+
+  def catalogURIMapperException
+  (message: String,
+   cause: Option[java.lang.Throwable] = None)
+  : UMLError.UException =
+    new CatalogURIMapperException(message, cause)
+
+  def resolvedDocumentSetException[Uml <: UML]
+  (rds: ResolvedDocumentSet[Uml],
+   message: String,
+   cause: Option[java.lang.Throwable] = None)
+  : UMLError.UException =
+    new ResolvedDocumentSetException(rds, message, cause)
+
+  def documentIDGeneratorException[Uml <: UML]
+  (idGenerator: DocumentIDGenerator[Uml],
+   elements: Iterable[UMLElement[Uml]],
+   message: String,
+   cause: Option[java.lang.Throwable] = None)
+  : UMLError.UException =
+    new DocumentIDGeneratorException(idGenerator, elements, message, cause)
 
 }

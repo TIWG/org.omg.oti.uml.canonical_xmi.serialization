@@ -39,6 +39,7 @@
  */
 package org.omg.oti.uml.canonicalXMI
 
+import org.omg.oti.uml.UMLError
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.xmi._
@@ -52,9 +53,6 @@ import scala.{Boolean,Either,Function1,Option,Left,None,Right,Product,Some,Strin
 import scala.Predef.{Map =>_, Set =>_,_}
 import scala.collection.immutable._
 import scala.collection.Iterable
-import scala.util.Try
-import scala.util.Failure
-import scala.util.Success
 import scalax.collection.config.CoreConfig
 import scalax.collection.mutable.ArraySet.Hints
 import scalax.collection.GraphEdge._
@@ -72,7 +70,7 @@ import java.io.FileWriter
 import java.io.BufferedWriter
 import java.io.PrintWriter
 
-import scalaz._
+import scalaz._, Scalaz._
 
 /**
  * There seems to be a bug in scala-graph core 1.9.1
@@ -117,10 +115,10 @@ case class UnresolvedElementCrossReference[Uml <: UML]
  documentElement: UMLElement[Uml],
  externalReference: UMLElement[Uml])
 
-case class DocumentSetException
-(message: String,
- t: java.lang.Throwable)
-extends java.lang.Exception(message,t)
+class DocumentSetException
+(override val message: String,
+ override val cause: Option[java.lang.Throwable] = None)
+  extends UMLError.UException(message, cause)
 
 /**
  * @todo add support for the possibility that a stereotype tag value may
@@ -173,7 +171,7 @@ trait DocumentSet[Uml <: UML] {
   def resolve
   (ignoreCrossReferencedElementFilter: UMLElement[Uml] => Boolean,
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]])
-  : Try[(ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {
+  : ValidationNel[UMLError.UException, (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {
 
     val allDocuments = serializableDocuments ++ builtInDocuments
 
@@ -206,26 +204,26 @@ trait DocumentSet[Uml <: UML] {
     (e: UMLElement[Uml])
     : Option[Document[Uml]]
     = element2document
-    .get(e)
-    .orElse {
-      if (ignoreCrossReferencedElementFilter(e))
-        None
-      else
-        unresolvedElementMapper(e)
-        .flatMap { eMapped =>
-          element2document.get(eMapped)
-        }
-    }
+      .get(e)
+      .orElse {
+        if (ignoreCrossReferencedElementFilter(e))
+          None
+        else
+          unresolvedElementMapper(e)
+          .flatMap { eMapped =>
+            element2document.get(eMapped)
+          }
+      }
 
     def lookupDocumentForElementReference
     (d: Document[Uml], e: UMLElement[Uml], eRef: UMLElement[Uml])
     : Either[Document[Uml], UnresolvedElementCrossReference[Uml]]
     = lookupDocumentForElement(eRef)
-    .fold[Either[Document[Uml], UnresolvedElementCrossReference[Uml]]] {
-      Right(UnresolvedElementCrossReference(d, e, eRef))
-    }{ dRef =>
-      Left(dRef)
-    }
+      .fold[Either[Document[Uml], UnresolvedElementCrossReference[Uml]]] {
+        Right(UnresolvedElementCrossReference(d, e, eRef))
+      }{ dRef =>
+        Left(dRef)
+      }
 
     val g = mGraphFactory.empty()
 
@@ -235,29 +233,42 @@ trait DocumentSet[Uml <: UML] {
     // add the edges among built-in documents.
     g ++= builtInDocumentEdges
 
-    val unresolved = for {
-      (e, d) <- element2document
-      eRef <- e.allForwardReferencesToElements
-      u <- lookupDocumentForElementReference(d, e, eRef) match {
-        case Right(unresolved) =>
-          Some(unresolved)
-        case Left(dRef) =>
-          d match {
-            case sd: SerializableDocument[Uml] =>
-              g += DocumentEdge(sd, dRef)
-            case _ =>
-              ()
-          }
-          None
-      }
-    } yield u
+    val u0: ValidationNel[UMLError.UException, Set[UnresolvedElementCrossReference[Uml]]] = Set().successNel
+    val uN: ValidationNel[UMLError.UException, Set[UnresolvedElementCrossReference[Uml]]] =
+      (u0 /: element2document) { case (ui, (e, d)) =>
 
-    Success((ResolvedDocumentSet(
-      this,
-      g,
-      element2document,
-      unresolvedElementMapper),
-      unresolved))
+      ui +++
+      e.allForwardReferencesToImportablePackageableElements
+      .disjunction
+      .map { eRefs =>
+        val s = for {
+          eRef <- eRefs
+          u <- lookupDocumentForElementReference(d, e, eRef) match {
+            case Right(unresolved) =>
+              Some(unresolved)
+            case Left(dRef) =>
+              d match {
+                case sd: SerializableDocument[Uml] =>
+                  g += DocumentEdge(sd, dRef)
+                case _ =>
+                  ()
+              }
+              None
+          }
+        } yield u
+        s
+      }
+      .validation
+    }
+
+    uN.map { unresolved =>
+      (ResolvedDocumentSet(
+        this,
+        g,
+        element2document,
+        unresolvedElementMapper),
+        unresolved)
+    }
   }
 
   /**
@@ -323,21 +334,27 @@ object DocumentSet {
   def serializeValueSpecificationAsTagValue[Uml <: UML]
   (value: UMLValueSpecification[Uml])
   (implicit idg: IDGenerator[Uml])
-  : Try[Option[String]] =
+  : ValidationNel[UMLError.UException, Option[String]] =
     value match {
       case l: UMLLiteralBoolean[Uml] =>
-        Success(Some(l.value.toString))
+        l.value.toString.some.successNel
       case l: UMLLiteralInteger[Uml] =>
-        Success(Some(l.value.toString))
+        l.value.toString.some.successNel
       case l: UMLLiteralReal[Uml] =>
-        Success(Some(l.value.toString))
+        l.value.toString.some.successNel
       case l: UMLLiteralString[Uml] =>
-        Success(l.value match { case None => None; case Some(s) => Some(s) })
+        l.value.successNel
       case iv: UMLInstanceValue[Uml] =>
-        Success(iv.instance match { case None => None; case Some(is) => Some(is.xmiID) })
+        iv.instance
+        .fold[ValidationNel[UMLError.UException, Option[String]]](None.successNel){ is =>
+          is.xmiID.map(_.some)
+        }
       case v =>
-        Failure(new IllegalArgumentException(
-          s"No value=>string serialization support for ${v.xmiType.head} (ID=${v.xmiID})"))
+        UMLError
+        .illegalElementError[Uml, UMLValueSpecification[Uml]](
+          s"No value=>string serialization support for ${v.xmiType.head} (ID=${v.xmiID})",
+          Iterable(value))
+        .failureNel
     }
 
   def constructDocumentSetCrossReferenceGraph[Uml <: UML]
@@ -353,34 +370,71 @@ object DocumentSet {
    otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]],
    nodeT: TypeTag[Document[Uml]],
    edgeT: TypeTag[DocumentEdge[Document[Uml]]])
-  : Try[(ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {
+  : ValidationNel[UMLError.UException, (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {
 
-    import ops._
     import documentOps._
 
-    val (roots, anonymousRoots) = specificationRootPackages partition (_.getEffectiveURI.isDefined)
-    if (anonymousRoots.nonEmpty)
-      Failure(illegalElementException(
-        "Document-level packages must have an effective URI for export", anonymousRoots))
-    else {
-      val serializableDocuments = for {
-        root <- roots
-        sd <- createSerializableDocumentFromExistingRootPackage(root)
-      } yield sd
+    val p0: ValidationNel[UMLError.UException, (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]])] =
+      (Set[UMLPackage[Uml]](), Set[UMLPackage[Uml]]()).successNel
 
-      for {
-        ds <- createDocumentSet(
-          serializableDocuments,
-          builtInDocuments,
-          builtInDocumentEdges,
-          documentURIMapper,
-          builtInURIMapper,
-          aggregate)
+    val pN: ValidationNel[UMLError.UException, (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]])] =
+      (p0 /: specificationRootPackages) { (pi, pkg) =>
+        pi +++
+        pkg.getEffectiveURI.map( ouri =>
+          if (ouri.isDefined)
+            (Set(pkg), Set())
+          else
+            (Set(), Set(pkg))
+        )
+      }
 
-        rds <- ds.resolve(
-          ignoreCrossReferencedElementFilter,
-          unresolvedElementMapper)
-      } yield rds
-    }
+    val pd: \/[NonEmptyList[UMLError.UException], (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]])] =
+      pN
+      .disjunction
+
+    val pv: \/[NonEmptyList[UMLError.UException], (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] =
+      pd
+      .flatMap[NonEmptyList[UMLError.UException], (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] {
+        case (roots: Set[UMLPackage[Uml]], anonymousRoots: Set[UMLPackage[Uml]]) =>
+
+        val result: \/[NonEmptyList[UMLError.UException], (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] =
+        if (anonymousRoots.nonEmpty)
+          -\/(NonEmptyList[UMLError.UException](
+            UMLError
+            .illegalElementError[Uml, UMLPackage[Uml]](
+              "Document-level packages must have an effective URI for export",
+              anonymousRoots)))
+        else {
+          val serializableDocuments = for {
+            root <- roots
+            sd <- createSerializableDocumentFromExistingRootPackage(root)
+          } yield sd
+
+          createDocumentSet(
+              serializableDocuments,
+              builtInDocuments,
+              builtInDocumentEdges,
+              documentURIMapper,
+              builtInURIMapper,
+              aggregate)
+          .disjunction
+          .flatMap { ds =>
+
+            ds
+              .resolve(
+                ignoreCrossReferencedElementFilter,
+                unresolvedElementMapper)
+              .disjunction
+
+          }
+
+        }
+
+        result
+      }
+
+    pv
+    .validation
+
   }
 }
