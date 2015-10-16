@@ -92,14 +92,12 @@ case class ResolvedDocumentSet[Uml <: UML]
   def getStereotype_ID_UUID
   (s: UMLStereotype[Uml])
   (implicit idg: IDGenerator[Uml], dOps: DocumentOps[Uml])
-  : ValidationNel[UMLError.UException, (String, String)] = {
+  : \/[NonEmptyList[UMLError.UException], (String, String)] = {
     s
     .xmiID()
-    .disjunction
     .flatMap { _id =>
       s
       .xmiUUID()
-      .disjunction
       .flatMap { _uuid =>
 
         element2mappedDocument(s)
@@ -142,7 +140,6 @@ case class ResolvedDocumentSet[Uml <: UML]
         }
       }
     }
-    .validation
   }
 
   def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] =
@@ -152,10 +149,10 @@ case class ResolvedDocumentSet[Uml <: UML]
   def serialize
   ()
   (implicit idg: IDGenerator[Uml])
-  : ValidationNel[UMLError.UException, Set[(SerializableDocument[Uml], java.io.File)]] = {
+  : \/[NonEmptyList[UMLError.UException], Set[(SerializableDocument[Uml], java.io.File)]] = {
 
-    val s0: ValidationNel[UMLError.UException, Set[(SerializableDocument[Uml], java.io.File)]] = Set().successNel
-    val sN: ValidationNel[UMLError.UException, Set[(SerializableDocument[Uml], java.io.File)]] = (s0 /: g.nodes) {
+    val s0: \/[NonEmptyList[UMLError.UException], Set[(SerializableDocument[Uml], java.io.File)]] = Set().right
+    val sN: \/[NonEmptyList[UMLError.UException], Set[(SerializableDocument[Uml], java.io.File)]] = (s0 /: g.nodes) {
       (si, n) => n.value match {
           case _: BuiltInDocument[Uml] =>
             si
@@ -170,21 +167,22 @@ case class ResolvedDocumentSet[Uml <: UML]
   def serializePkg
   (pkg: UMLPackage[Uml])
   (implicit idg: IDGenerator[Uml])
-  : ValidationNel[UMLError.UException, Set[(SerializableDocument[Uml], java.io.File)]] =
+  : \/[NonEmptyList[UMLError.UException], Set[(SerializableDocument[Uml], java.io.File)]] =
     ds
     .serializableDocuments
     .find { d =>
       d.scope == pkg }
-    .fold[ValidationNel[UMLError.UException, Set[(SerializableDocument[Uml], java.io.File)]]]{
-      resolvedDocumentSetException(
-        this,
-        "serializePkg failed",
-        UMLError
-        .illegalElementError[Uml, UMLPackage[Uml]](
-          s"Serialization failed: no document found for ${pkg.qualifiedName.get}",
-          Iterable(pkg))
-        .some)
-      .failureNel
+    .fold[\/[NonEmptyList[UMLError.UException], Set[(SerializableDocument[Uml], java.io.File)]]]{
+      NonEmptyList(
+        resolvedDocumentSetException(
+          this,
+          "serializePkg failed",
+          UMLError
+          .illegalElementError[Uml, UMLPackage[Uml]](
+            s"Serialization failed: no document found for ${pkg.qualifiedName.get}",
+            Iterable(pkg))
+          .some))
+      .left
     }{ d =>
       serialize(d)
     }
@@ -194,16 +192,15 @@ case class ResolvedDocumentSet[Uml <: UML]
   (tagValueNodes: \/[NonEmptyList[UMLError.UException], List[scala.xml.Elem]],
    stereotypeTagValue: UMLStereotypeTagValue[Uml])
   : \/[NonEmptyList[UMLError.UException], List[scala.xml.Elem]] =
-    tagValueNodes +++ stereotypeTagValue.serialize(xmiScopes, idg).disjunction.map(_.to[List])
+    tagValueNodes +++ stereotypeTagValue.serialize(xmiScopes, idg).map(_.to[List])
 
   protected def serialize
   (d: SerializableDocument[Uml])
   (implicit idg: IDGenerator[Uml])
-  : ValidationNel[UMLError.UException, Set[(SerializableDocument[Uml], java.io.File)]] =
+  : \/[NonEmptyList[UMLError.UException], Set[(SerializableDocument[Uml], java.io.File)]] =
     ds
     .documentURIMapper
     .resolveURI(d.uri, ds.documentURIMapper.saveResolutionStrategy)
-    .disjunction
     .flatMap { ruri =>
 
       val uri = ruri.getOrElse(d.uri)
@@ -218,8 +215,8 @@ case class ResolvedDocumentSet[Uml <: UML]
               +s"${d.uri} mapped for save to $ruri: ${t.getMessage}",
               t.some) ) )
         case \/-(furi) =>
-          val s = d.scope.xmiID.disjunction.flatMap { d_id =>
-            d.scope.xmiUUID.disjunction.flatMap { d_uuid =>
+          val s = d.scope.xmiID.flatMap { d_id =>
+            d.scope.xmiUUID.flatMap { d_uuid =>
               serialize(d, d_id, d_uuid, furi)
             }
           }
@@ -228,7 +225,6 @@ case class ResolvedDocumentSet[Uml <: UML]
 
       result
     }
-    .validation
 
   protected def serialize
   (d: SerializableDocument[Uml],
@@ -247,7 +243,6 @@ case class ResolvedDocumentSet[Uml <: UML]
       ( tv0 /: d.extent ) { (tvi, e) =>
         tvi +++
         e.tagValues
-        .disjunction
         .map(etvs => Set((e, etvs)))
       }
 
@@ -284,7 +279,7 @@ case class ResolvedDocumentSet[Uml <: UML]
       \/-(null)
     val sN: \/[NonEmptyList[UMLError.UException], NamespaceBinding] =
       ( s0 /: referencedProfiles) { (si, rP) =>
-        (si |@| rP.getEffectiveURI.disjunction) { (_si, _uri) =>
+        (si |@| rP.getEffectiveURI) { (_si, _uri) =>
           _uri.fold(_si){ ns_uri =>
             NamespaceBinding(rP.name.get, ns_uri, _si)
           }
@@ -368,11 +363,9 @@ case class ResolvedDocumentSet[Uml <: UML]
 
           e
             .xmiID()
-            .disjunction
             .flatMap { eID =>
               e
                 .xmiUUID()
-                .disjunction
                 .flatMap { eUUID =>
 
                   val allTagValuesByStereotype: Map[UMLStereotype[Uml], Seq[UMLStereotypeTagValue[Uml]]] =
@@ -398,7 +391,6 @@ case class ResolvedDocumentSet[Uml <: UML]
                   val oTVE0: \/[NonEmptyList[UMLError.UException], List[Node]] = List[Node]().right
                   val oTVEN: \/[NonEmptyList[UMLError.UException], List[Node]] = (oTVE0 /: ordering) { (oTVEi, s) =>
                     getStereotype_ID_UUID(s)
-                      .disjunction
                       .flatMap {
                         case (sID, _) =>
                           val tagValueAttributes: \/[NonEmptyList[UMLError.UException], List[Elem]] =
@@ -658,7 +650,7 @@ case class ResolvedDocumentSet[Uml <: UML]
     def foldAttribute
     (next: \/[NonEmptyList[UMLError.UException], MetaData], f: e.MetaAttributeFunction)
     : \/[NonEmptyList[UMLError.UException], MetaData] =
-      (next, f.evaluate(e, idg).disjunction) match {
+      (next, f.evaluate(e, idg)) match {
         case (-\/(t), _) =>
           t.left
         case (_, -\/(t)) =>
@@ -679,7 +671,7 @@ case class ResolvedDocumentSet[Uml <: UML]
     def foldAttributeNode
     (nodes: \/[NonEmptyList[UMLError.UException], NodeSeq], f: e.MetaAttributeFunction)
     : \/[NonEmptyList[UMLError.UException], NodeSeq] =
-      (nodes, f.evaluate(e, idg).disjunction) match {
+      (nodes, f.evaluate(e, idg)) match {
         case (-\/(t), _) =>
           t.left
         case (_, -\/(t)) =>
@@ -701,11 +693,9 @@ case class ResolvedDocumentSet[Uml <: UML]
           case rf: e.MetaReferenceEvaluator =>
             rf
             .evaluate(e)
-            .disjunction
             .flatMap(
               _.fold[\/[NonEmptyList[UMLError.UException], NodeSeq]](ns.right) { eRef =>
                 eRef.xmiID()
-                .disjunction
                 .flatMap { eRefID =>
                   element2mappedDocument(eRef)
                   .fold[\/[NonEmptyList[UMLError.UException], NodeSeq]](ns.right) { dRef =>
@@ -741,7 +731,6 @@ case class ResolvedDocumentSet[Uml <: UML]
           case cf: e.MetaCollectionEvaluator =>
             cf
             .evaluate(e)
-            .disjunction
             .flatMap { eRefs: List[UMLElement[Uml]] =>
               if (eRefs.isEmpty)
                 ns.right
@@ -952,8 +941,7 @@ case class ResolvedDocumentSet[Uml <: UML]
               f match {
                 case rf: e.MetaReferenceEvaluator =>
                   rf
-                  .evaluate(e)
-                  .disjunction match {
+                  .evaluate(e) match {
                     case -\/(t) =>
                       return_ {
                         -\/(t)
@@ -987,8 +975,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                   }
                 case cf: e.MetaCollectionEvaluator =>
                   cf
-                  .evaluate(e)
-                  .disjunction match {
+                  .evaluate(e) match {
                     case -\/(t) =>
                       return_ {
                         -\/(t)

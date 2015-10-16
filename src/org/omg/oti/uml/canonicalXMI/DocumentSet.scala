@@ -171,7 +171,7 @@ trait DocumentSet[Uml <: UML] {
   def resolve
   (ignoreCrossReferencedElementFilter: UMLElement[Uml] => Boolean,
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]])
-  : ValidationNel[UMLError.UException, (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {
+  : \/[NonEmptyList[UMLError.UException], (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {
 
     val allDocuments = serializableDocuments ++ builtInDocuments
 
@@ -233,13 +233,12 @@ trait DocumentSet[Uml <: UML] {
     // add the edges among built-in documents.
     g ++= builtInDocumentEdges
 
-    val u0: ValidationNel[UMLError.UException, Set[UnresolvedElementCrossReference[Uml]]] = Set().successNel
-    val uN: ValidationNel[UMLError.UException, Set[UnresolvedElementCrossReference[Uml]]] =
+    val u0: \/[NonEmptyList[UMLError.UException], Set[UnresolvedElementCrossReference[Uml]]] = Set().right
+    val uN: \/[NonEmptyList[UMLError.UException], Set[UnresolvedElementCrossReference[Uml]]] =
       (u0 /: element2document) { case (ui, (e, d)) =>
 
       ui +++
       e.allForwardReferencesToImportablePackageableElements
-      .disjunction
       .map { eRefs =>
         val s = for {
           eRef <- eRefs
@@ -258,7 +257,6 @@ trait DocumentSet[Uml <: UML] {
         } yield u
         s
       }
-      .validation
     }
 
     uN.map { unresolved =>
@@ -334,27 +332,28 @@ object DocumentSet {
   def serializeValueSpecificationAsTagValue[Uml <: UML]
   (value: UMLValueSpecification[Uml])
   (implicit idg: IDGenerator[Uml])
-  : ValidationNel[UMLError.UException, Option[String]] =
+  : \/[NonEmptyList[UMLError.UException], Option[String]] =
     value match {
       case l: UMLLiteralBoolean[Uml] =>
-        l.value.toString.some.successNel
+        l.value.toString.some.right
       case l: UMLLiteralInteger[Uml] =>
-        l.value.toString.some.successNel
+        l.value.toString.some.right
       case l: UMLLiteralReal[Uml] =>
-        l.value.toString.some.successNel
+        l.value.toString.some.right
       case l: UMLLiteralString[Uml] =>
-        l.value.successNel
+        l.value.right
       case iv: UMLInstanceValue[Uml] =>
         iv.instance
-        .fold[ValidationNel[UMLError.UException, Option[String]]](None.successNel){ is =>
+        .fold[\/[NonEmptyList[UMLError.UException], Option[String]]](Option.empty[String].right){ is =>
           is.xmiID.map(_.some)
         }
       case v =>
-        UMLError
-        .illegalElementError[Uml, UMLValueSpecification[Uml]](
-          s"No value=>string serialization support for ${v.xmiType.head} (ID=${v.xmiID})",
-          Iterable(value))
-        .failureNel
+        NonEmptyList(
+          UMLError
+          .illegalElementError[Uml, UMLValueSpecification[Uml]](
+            s"No value=>string serialization support for ${v.xmiType.head} (ID=${v.xmiID})",
+            Iterable(value)))
+        .left
     }
 
   def constructDocumentSetCrossReferenceGraph[Uml <: UML]
@@ -370,14 +369,14 @@ object DocumentSet {
    otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]],
    nodeT: TypeTag[Document[Uml]],
    edgeT: TypeTag[DocumentEdge[Document[Uml]]])
-  : ValidationNel[UMLError.UException, (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {
+  : \/[NonEmptyList[UMLError.UException], (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] = {
 
     import documentOps._
 
-    val p0: ValidationNel[UMLError.UException, (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]])] =
-      (Set[UMLPackage[Uml]](), Set[UMLPackage[Uml]]()).successNel
+    val p0: \/[NonEmptyList[UMLError.UException], (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]])] =
+      (Set[UMLPackage[Uml]](), Set[UMLPackage[Uml]]()).right
 
-    val pN: ValidationNel[UMLError.UException, (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]])] =
+    val pN: \/[NonEmptyList[UMLError.UException], (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]])] =
       (p0 /: specificationRootPackages) { (pi, pkg) =>
         pi +++
         pkg.getEffectiveURI.map( ouri =>
@@ -390,7 +389,6 @@ object DocumentSet {
 
     val pd: \/[NonEmptyList[UMLError.UException], (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]])] =
       pN
-      .disjunction
 
     val pv: \/[NonEmptyList[UMLError.UException], (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] =
       pd
@@ -428,7 +426,6 @@ object DocumentSet {
                     .resolve(
                       ignoreCrossReferencedElementFilter,
                       unresolvedElementMapper)
-                    .disjunction
 
                 }
             }
@@ -438,7 +435,6 @@ object DocumentSet {
       }
 
     pv
-    .validation
 
   }
 }
