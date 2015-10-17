@@ -82,15 +82,15 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   override def element2mappedDocument
   (e: UMLElement[Uml])
-  : Option[Document[Uml]] =
-    resolvedDocumentSet.element2mappedDocument(e)
+  : NonEmptyList[UMLError.UException] \/ Option[Document[Uml]] =
+    resolvedDocumentSet.element2mappedDocument(e).right
 
   override def getElement2IDMap
-  : Map[UMLElement[Uml], \/[NonEmptyList[UMLError.UException], String]] = element2id.toMap
+  : Map[UMLElement[Uml], (NonEmptyList[UMLError.UException] \/ String)] = element2id.toMap
 
   override def lookupElementXMI_ID
   (e: UMLElement[Uml])
-  : \/[NonEmptyList[UMLError.UException], Option[String]] =
+  : NonEmptyList[UMLError.UException] \/ Option[String] =
     element2id
     .get(e)
     .fold[\/[NonEmptyList[UMLError.UException], Option[String]]](
@@ -102,15 +102,15 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    * Computes the xmi:ID for each element in the domain of the element2document map of the ResolvedDocumentSet
    */
   def computePackageExtentXMI_ID(pkg: UMLPackage[Uml])
-  : \/[NonEmptyList[UMLError.UException], Unit] = {
+  : NonEmptyList[UMLError.UException] \/ Unit = {
 
     val extent = pkg
       .allOwnedElements
       .+(pkg)
       .filter(resolvedDocumentSet.isElementMapped2Document)
 
-    val e0: \/[NonEmptyList[UMLError.UException], Unit] = ().right
-    val eN: \/[NonEmptyList[UMLError.UException], Unit] = (e0 /: extent) {
+    val e0: NonEmptyList[UMLError.UException] \/ Unit = ().right
+    val eN: NonEmptyList[UMLError.UException] \/ Unit = (e0 /: extent) {
       (ei, e) =>
         ei +++ getXMI_ID(e).map( _ => ())
     }
@@ -121,14 +121,18 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   protected def getXMI_IDREF_or_HREF_fragment
   (from: UMLElement[Uml],
    to: UMLElement[Uml])
-  : \/[NonEmptyList[UMLError.UException], String] =
+  : NonEmptyList[UMLError.UException] \/ String =
     getXMI_IDREF_or_HREF_fragment_internal(from, to)
-    .orElse( getXMI_IDREF_or_HREF_fragment(from, getMappedOrReferencedElement(to)) )
+    .orElse(
+      getMappedOrReferencedElement(to)
+        .flatMap { _to =>
+          getXMI_IDREF_or_HREF_fragment(from, _to)
+        })
 
   protected def getXMI_IDREF_or_HREF_fragment_internal
   (from: UMLElement[Uml],
    to: UMLElement[Uml])
-  : \/[NonEmptyList[UMLError.UException], String] =
+  : NonEmptyList[UMLError.UException] \/ String =
     resolvedDocumentSet.element2mappedDocument(from)
     .fold[\/[NonEmptyList[UMLError.UException], String]] {
       NonEmptyList(
@@ -177,7 +181,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           bid
 
         case _: SerializableDocument[Uml] =>
-          getXMI_ID(getMappedOrReferencedElement(to))
+          getMappedOrReferencedElement(to)
+          .flatMap( _to => getXMI_ID(_to))
 
         case d =>
           NonEmptyList(
@@ -196,7 +201,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    * unless it is overriden by an application of the OTI::Identity stereotype
    */
   def getXMI_ID(self: UMLElement[Uml])
-  : \/[NonEmptyList[UMLError.UException], String] =
+  : NonEmptyList[UMLError.UException] \/ String =
     element2id.getOrElseUpdate(
     self, {
       resolvedDocumentSet.element2mappedDocument( self )
@@ -244,7 +249,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     })
 
   def computeID(self: UMLElement[Uml])
-  : \/[NonEmptyList[UMLError.UException], String] = {
+  : NonEmptyList[UMLError.UException] \/ String = {
     val r =
       elementRules
       .toStream
@@ -358,7 +363,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   val crule1a: ContainedElement2IDRule = {
     case (owner, ownerID, cf, fv@(_: UMLFeature[Uml] | _: UMLValueSpecification[Uml])) =>
       val fvn = fv.asInstanceOf[UMLNamedElement[Uml]]
-      val shortID: \/[NonEmptyList[UMLError.UException], String] = owner match {
+      val shortID: NonEmptyList[UMLError.UException] \/ String = owner match {
         case s: UMLSlot[Uml] =>
           s
           .definingFeature
@@ -384,13 +389,13 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           .right
 
       }
-      val suffix1: \/[NonEmptyList[UMLError.UException], String] = shortID.map {
+      val suffix1: NonEmptyList[UMLError.UException] \/ String = shortID.map {
         case "" =>
           ""
         case id =>
           "." + IDGenerator.xmlSafeID(id)
       }
-      val suffix2: \/[NonEmptyList[UMLError.UException], String] = fv match {
+      val suffix2: NonEmptyList[UMLError.UException] \/ String = fv match {
         case bf: UMLBehavioralFeature[Uml] =>
           ( suffix1 /: bf.ownedParameter )( ( s, p ) =>
           s +++
@@ -583,7 +588,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       }
   }
 
-  def getImageLocationURL(i: UMLImage[Uml]): \/[NonEmptyList[UMLError.UException], String] =
+  def getImageLocationURL(i: UMLImage[Uml]): NonEmptyList[UMLError.UException] \/ String =
     i
     .location
     .fold[\/[NonEmptyList[UMLError.UException], String]] {
