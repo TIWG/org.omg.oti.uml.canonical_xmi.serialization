@@ -41,9 +41,7 @@ package org.omg.oti.uml.canonicalXMI
 
 import org.omg.oti.uml.UMLError
 
-import java.io.{File, FileNotFoundException, IOException}
-import java.lang.{Exception, IllegalArgumentException, Throwable}
-import java.net.{MalformedURLException, URI, URL}
+import java.net.{URI, URL}
 
 import org.omg.oti.uml.read.api.UML
 
@@ -60,7 +58,7 @@ import org.apache.xml.resolver.tools.CatalogResolver
 
 class CatalogURIMapperException
 (override val message: String,
- override val cause: Option[Throwable] = None)
+ override val cause: Option[java.lang.Throwable] = None)
   extends UMLError.UException(message, cause)
 
 case class CatalogURIMapper(
@@ -78,7 +76,7 @@ case class CatalogURIMapper(
   def parseCatalog(catalogURI: URI)
   : NonEmptyList[UMLError.UException] \/ Unit =
     catching(classOf[java.io.IOException])
-    .withApply{ cause: Throwable =>
+    .withApply{ cause: java.lang.Throwable =>
       NonEmptyList(catalogURIMapperException(s"failed to parse catalog: $catalogURI", cause.some)).left
     }
     .apply(catalog.parseCatalog(catalogURI.toURL).right)
@@ -92,13 +90,13 @@ case class CatalogURIMapper(
       NonEmptyList(
         catalogURIMapperException(
           "The document extension, when specified, must start with '.'",
-          new IllegalArgumentException(
+          new java.lang.IllegalArgumentException(
             s"Illegal value for appendDocumentExtensionUnlessPresent: " +
               s"'$appendDocumentExtensionUnlessPresent'").some)).left
 
     else
       catching(classOf[java.io.IOException])
-      .withApply { cause: Throwable =>
+      .withApply { cause: java.lang.Throwable =>
         NonEmptyList(
           catalogURIMapperException(s"failed to parse '$resolved' as a URL", cause.some)).left
       }
@@ -119,8 +117,11 @@ case class CatalogURIMapper(
   def loadResolutionStrategyPair
   (f1: URL, f2: URL)
   : NonEmptyList[UMLError.UException] \/ Option[URI] =
-    catching(classOf[java.io.IOException])
-    .withApply { _: Throwable =>
+    catching(
+      classOf[java.io.IOException],
+      classOf[java.lang.SecurityException],
+      classOf[java.net.URISyntaxException])
+    .withApply { _: java.lang.Throwable =>
       Option.empty[URI].right
     }
     .apply({
@@ -134,60 +135,90 @@ case class CatalogURIMapper(
         }
 
       r1
-      .fold[\/[NonEmptyList[UMLError.UException], Option[URI]]](
-          catching(classOf[java.io.IOException])
-            .withApply { _: Throwable =>
-              Option.empty[URI].right
+      .fold[NonEmptyList[UMLError.UException] \/ Option[URI]](
+          catching(
+            classOf[java.io.IOException],
+            classOf[java.lang.SecurityException])
+          .withApply { _: java.lang.Throwable =>
+            Option.empty[URI].right
+          }
+          .apply({
+            val r2: Option[URI] = for {
+              is <- Option.apply(
+                f1.openStream()
+              )
+              if is.available() > 0
+            } yield {
+              is.close()
+              f1.toURI
             }
-            .apply({
-              val r2: Option[URI] = for {
-                is <- Option.apply(f1.openStream())
-                if is.available() > 0
-              } yield {
-                is.close()
-                f1.toURI
-              }
-              r2
-                .fold[\/[NonEmptyList[UMLError.UException], Option[URI]]](
-                Option.empty[URI].right
-              ) { uri: URI =>
-                uri.some.right
-              }
-            })
+            r2
+              .fold[NonEmptyList[UMLError.UException] \/ Option[URI]](
+              Option.empty[URI].right
+            ) { uri: URI =>
+              uri.some.right
+            }
+          })
         ) { uri: URI =>
           uri.some.right
         }
     })
 
-  def saveResolutionStrategy(resolved: String): Option[URI] = {
+  def saveResolutionStrategy(resolved: String)
+  : NonEmptyList[UMLError.UException] \/ Option[URI] =
+    catching(
+      classOf[java.io.IOException],
+      classOf[java.lang.SecurityException],
+      classOf[java.net.URISyntaxException],
+      classOf[java.net.MalformedURLException],
+      classOf[java.lang.NullPointerException])
+  .withApply {
+    (cause: java.lang.Throwable) =>
+      NonEmptyList(
+        catalogURIMapperException(
+          s"saveResolutionStrategy: resolved=$resolved failed: ${cause.getMessage}",
+          cause.some)
+      ).left
+  }
+  .apply({
     val normalized = new URI(resolved)
     val normalizedPath = normalized.toString
     val f1 = new URL(normalizedPath)
     val outputFile =
-      if (resolved.startsWith("file:")) new File(resolved.substring(5))
-      else new File(resolved)
-    outputFile.getParentFile match {
-      case null => None
-      case outputDir =>
-        if (!outputDir.exists)
-          outputDir.mkdirs
-
-        if (outputDir.exists && outputDir.isDirectory && outputDir.canWrite)
-          Some(f1.toURI)
-        else
-          None
+      if (resolved.startsWith("file:"))
+        new java.io.File(resolved.substring(5))
+      else
+        new java.io.File(resolved)
+    Option.apply(outputFile.getParentFile)
+    .fold[Option[URI]](Option.empty[URI]) { outputDir =>
+      if (!outputDir.exists) {
+        outputDir.mkdirs
+      }
+      if (outputDir.exists && outputDir.isDirectory && outputDir.canWrite)
+        f1.toURI.some
+      else
+        Option.empty[URI]
     }
-  }
+    .right
+  })
 
-  def resolve(uri: String): Option[String] =
-    catalog.resolveURI(uri) match {
-      case null => None
-      case resolved => Some(resolved)
+  def resolve(uri: String)
+  : NonEmptyList[UMLError.UException] \/ Option[String] =
+    catching(classOf[java.net.MalformedURLException])
+    .withApply { cause: java.lang.Throwable =>
+      NonEmptyList(
+        catalogURIMapperException(s"resolve(uri=$uri) failed: ${cause.getMessage}", cause.some)
+      ).left
     }
+    .apply(
+      Option.apply(
+        catalog.resolveURI(uri)
+      ).right
+    )
 
   def resolveURI
   ( uri: URI,
-    resolutionStrategy: (String) => Option[URI])
+    resolutionStrategy: (String) => NonEmptyList[UMLError.UException] \/ Option[URI])
   : NonEmptyList[UMLError.UException] \/ Option[URI] = {
 
     val rawPath = uri.toString
@@ -196,18 +227,21 @@ case class CatalogURIMapper(
         rawPath.substring(0, rawPath.length() - 1)
       else
         rawPath
-    catching(classOf[java.net.MalformedURLException], classOf[java.io.IOException])
+    catching(
+      classOf[java.net.MalformedURLException],
+      classOf[java.io.IOException])
     .withApply { t: java.lang.Throwable =>
       NonEmptyList(
         catalogURIMapperException(s"resolveURI(uri=$uri) failed", t.some)
       ).left
     }
     .apply(
-      Option.apply(resolve(iriPath))
-      .fold[\/[NonEmptyList[UMLError.UException], Option[URI]]](Option.empty[URI].right) {
-      resolved =>
-        resolved.fold[\/[NonEmptyList[UMLError.UException], Option[URI]]](Option.empty[URI].right) { r =>
-          resolutionStrategy(r).right
+      resolve(iriPath)
+      .flatMap {
+        _.fold[NonEmptyList[UMLError.UException] \/ Option[URI]](
+          Option.empty[URI].right
+        ) { resolved =>
+          resolutionStrategy(resolved)
         }
       })
   }
@@ -225,7 +259,7 @@ object CatalogURIMapper {
    * @return
    */
   def createMapperFromCatalogFiles
-  ( catalogFiles: Seq[File],
+  ( catalogFiles: Seq[java.io.File],
     verbosity: Int = 0)
   : NonEmptyList[UMLError.UException] \/ CatalogURIMapper = {
     val catalog = new CatalogManager()
@@ -241,7 +275,7 @@ object CatalogURIMapper {
           NonEmptyList(
             catalogURIMapperException(
               s"createMapperFromCatalogFiles failed",
-              new FileNotFoundException(catalogFile.getAbsolutePath).some)).left
+              new java.io.FileNotFoundException(catalogFile.getAbsolutePath).some)).left
       else
         ci +++ mapper.parseCatalog(catalogFile.toURI).map( _ => mapper)
     }

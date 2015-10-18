@@ -52,6 +52,7 @@ import scala.Predef.{Set => _, Map => _, _}
 import scala.annotation.tailrec
 import scala.collection.immutable._
 import scala.language.{higherKinds, implicitConversions, postfixOps}
+import scala.util.control.Exception._
 import scalaz._, Free._, Scalaz._
 
 class ResolvedDocumentSetException[Uml <: UML]
@@ -102,7 +103,7 @@ case class ResolvedDocumentSet[Uml <: UML]
           .flatMap { _uuid =>
 
             element2mappedDocument(s)
-              .fold[\/[NonEmptyList[UMLError.UException], (String, String)]](
+              .fold[NonEmptyList[UMLError.UException] \/ (String, String)](
               -\/(
                 NonEmptyList(
                   resolvedDocumentSetException(
@@ -115,15 +116,35 @@ case class ResolvedDocumentSet[Uml <: UML]
             ) {
               case d: BuiltInDocument[Uml] =>
                 dOps
-                  .getExternalDocumentURL(d.documentURL)
-                  .flatMap { url =>
-                    val builtInURI = url.resolve("#" + _id).toString
-                    val mappedURI = ds.builtInURIMapper.resolve(builtInURI).getOrElse(builtInURI)
-                    val fragmentIndex = mappedURI.lastIndexOf('#')
-                    require(fragmentIndex > 0)
-                    val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
-                    \/-(Tuple2(fragment, "omg.org." + d.nsPrefix.toLowerCase(java.util.Locale.ROOT) + fragment))
-                  }
+                .getExternalDocumentURL(d.documentURL)
+                .flatMap { url =>
+                  catching(
+                    classOf[java.lang.NullPointerException],
+                    classOf[java.lang.IllegalArgumentException])
+                    .withApply {
+                      (cause: java.lang.Throwable) =>
+                        -\/(
+                          NonEmptyList(
+                            resolvedDocumentSetException(
+                              this,
+                              "getStereotype_ID_UUID failed",
+                              UMLError
+                                .illegalElementError[Uml, UMLStereotype[Uml]](
+                                s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
+                                Iterable(s)).some)))
+                    }
+                    .apply({
+                      val builtInURI = url.resolve("#" + _id).toString
+                      ds.builtInURIMapper.resolve(builtInURI)
+                      .map { oresolved =>
+                        val mappedURI = oresolved.getOrElse(builtInURI)
+                        val fragmentIndex = mappedURI.lastIndexOf('#')
+                        require(fragmentIndex > 0)
+                        val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
+                        Tuple2(fragment, "omg.org." + d.nsPrefix.toLowerCase(java.util.Locale.ROOT) + fragment)
+                      }
+                    })
+                }
 
               case d: SerializableDocument[Uml] =>
                 \/-(Tuple2(_id, _uuid))
@@ -174,7 +195,7 @@ case class ResolvedDocumentSet[Uml <: UML]
       .find { d =>
         d.scope == pkg
       }
-      .fold[\/[NonEmptyList[UMLError.UException], Set[(SerializableDocument[Uml], java.io.File)]]] {
+      .fold[NonEmptyList[UMLError.UException] \/ Set[(SerializableDocument[Uml], java.io.File)]] {
       NonEmptyList(
         resolvedDocumentSetException(
           this,
@@ -312,7 +333,7 @@ case class ResolvedDocumentSet[Uml <: UML]
 
     val elementOrdering = scala.collection.mutable.ArrayBuffer[UMLElement[Uml]]()
 
-    val free: Free[Function0, \/[NonEmptyList[UMLError.UException], scala.xml.Node]] =
+    val free: Free[Function0, NonEmptyList[UMLError.UException] \/ scala.xml.Node] =
       generateNodeElement(
         elementOrdering,
         d, "uml", d.scope.xmiElementLabel,
@@ -481,11 +502,11 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   @tailrec final protected def append1Pair
   (sub: UMLElement[Uml],
-   t: Trampoline[\/[NonEmptyList[UMLError.UException], scala.xml.Node]],
+   t: Trampoline[NonEmptyList[UMLError.UException] \/ scala.xml.Node],
    subElements: Set[UMLElement[Uml]],
    nodes: Seq[scala.xml.Node],
    redefinitions: MetaPropertyFunctionSet)
-  : Trampoline[\/[NonEmptyList[UMLError.UException], SerializationState]] = {
+  : Trampoline[NonEmptyList[UMLError.UException] \/ SerializationState] = {
 
     //    assert( Thread.currentThread().getStackTrace.count( _.getMethodName == "append1Node" ) == 1,
     //      "Verification that the trampolined recursive function 'append1Node' runs stack-free" )
@@ -511,11 +532,11 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   @tailrec final protected def prependNestedElement
   (sub: UMLElement[Uml],
-   t: Trampoline[\/[NonEmptyList[UMLError.UException], scala.xml.Node]],
+   t: Trampoline[NonEmptyList[UMLError.UException] \/ scala.xml.Node],
    subElements: Set[UMLElement[Uml]],
    nodes: Seq[scala.xml.Node],
    redefinitions: MetaPropertyFunctionSet)
-  : Trampoline[\/[NonEmptyList[UMLError.UException], SerializationState]] = {
+  : Trampoline[NonEmptyList[UMLError.UException] \/ SerializationState] = {
 
     //    assert( Thread.currentThread().getStackTrace.count( _.getMethodName == "append1Node" ) == 1,
     //      "Verification that the trampolined recursive function 'append1Node' runs stack-free" )
@@ -541,8 +562,8 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   @tailrec final protected def append1Node
   (nodes: NodeSeq,
-   t: Trampoline[\/[NonEmptyList[UMLError.UException], scala.xml.Node]])
-  : Trampoline[\/[NonEmptyList[UMLError.UException], NodeSeq]] = {
+   t: Trampoline[NonEmptyList[UMLError.UException] \/ scala.xml.Node])
+  : Trampoline[NonEmptyList[UMLError.UException] \/ NodeSeq] = {
 
     //    assert( Thread.currentThread().getStackTrace.count( _.getMethodName == "append1Node" ) == 1,
     //      "Verification that the trampolined recursive function 'append1Node' runs stack-free" )
@@ -563,9 +584,9 @@ case class ResolvedDocumentSet[Uml <: UML]
   }
 
   @tailrec final protected def appendNodes
-  (t1: Trampoline[\/[NonEmptyList[UMLError.UException], NodeSeq]],
-   t2: Trampoline[\/[NonEmptyList[UMLError.UException], scala.xml.Node]])
-  : Trampoline[\/[NonEmptyList[UMLError.UException], NodeSeq]] = {
+  (t1: Trampoline[NonEmptyList[UMLError.UException] \/ NodeSeq],
+   t2: Trampoline[NonEmptyList[UMLError.UException] \/ scala.xml.Node])
+  : Trampoline[NonEmptyList[UMLError.UException] \/ NodeSeq] = {
 
     //    assert(
     //      Thread.currentThread().getStackTrace.count( _.getMethodName == "appendNodes" ) == 1,
@@ -587,13 +608,13 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   @tailrec final protected def wrapNodes
   (xRefAttrs: NonEmptyList[UMLError.UException] \/ NodeSeq,
-   t: Trampoline[\/[NonEmptyList[UMLError.UException], SerializationState]],
+   t: Trampoline[NonEmptyList[UMLError.UException] \/ SerializationState],
    xRefRefs: NonEmptyList[UMLError.UException] \/ NodeSeq,
    prefix: String,
    label: String,
    xmlAttributesAndLocalReferences: scala.xml.MetaData,
    xmiScopes: scala.xml.NamespaceBinding)
-  : Trampoline[\/[NonEmptyList[UMLError.UException], scala.xml.Node]] = {
+  : Trampoline[NonEmptyList[UMLError.UException] \/ scala.xml.Node] = {
 
     //    assert( Thread.currentThread().getStackTrace.count( _.getMethodName == "wrapNodes" ) == 1,
     //      "Verification that the trampolined function 'wrapNodes' runs recursively stack-free" )
@@ -641,7 +662,7 @@ case class ResolvedDocumentSet[Uml <: UML]
    e: UMLElement[Uml],
    xmiScopes: scala.xml.NamespaceBinding)
   (implicit idg: IDGenerator[Uml])
-  : Trampoline[\/[NonEmptyList[UMLError.UException], scala.xml.Node]] = {
+  : Trampoline[NonEmptyList[UMLError.UException] \/ scala.xml.Node] = {
 
     elementOrdering += e
 
@@ -664,8 +685,8 @@ case class ResolvedDocumentSet[Uml <: UML]
           (n /: values) {
             case (_n, _value) =>
               f
-                .attributePrefix
-                .fold[Attribute] {
+              .attributePrefix
+              .fold[Attribute] {
                 new UnprefixedAttribute(key = f.attributeName, value = _value, _n)
               } { aPrefix =>
                 new PrefixedAttribute(pre = aPrefix, key = f.attributeName, value = _value, _n)
@@ -697,41 +718,50 @@ case class ResolvedDocumentSet[Uml <: UML]
         f match {
           case rf: e.MetaReferenceEvaluator =>
             rf
-              .evaluate(e)
-              .flatMap(
-                _.fold[\/[NonEmptyList[UMLError.UException], NodeSeq]](ns.right) { eRef =>
-                  eRef.xmiID()
-                    .flatMap { eRefID =>
-                      element2mappedDocument(eRef)
-                        .fold[\/[NonEmptyList[UMLError.UException], NodeSeq]](ns.right) { dRef =>
-                        if (d == dRef) {
-                          val idrefAttrib: MetaData =
-                            new PrefixedAttribute(pre = "xmi", key = "idref", value = eRefID, Null)
-                          val idrefNode: Node =
-                            Elem(
-                              prefix = null, label = f.propertyName,
-                              attributes = idrefAttrib, scope = xmiScopes, minimizeEmpty = true)
-                          (ns :+ idrefNode).right
-                        } else {
-                          val href = dRef.documentURL + "#" + eRefID
-                          val externalHRef = dRef match {
-                            case _: SerializableDocument[Uml] =>
-                              href
-                            case _: BuiltInDocument[Uml] =>
-                              ds.builtInURIMapper.resolve(href).getOrElse(href)
-                          }
-
-                          val hrefAttrib: MetaData =
-                            new UnprefixedAttribute(key = "href", value = externalHRef, Null)
-                          val hrefNode: Node =
-                            Elem(
-                              prefix = null, label = f.propertyName, attributes = hrefAttrib,
-                              scope = xmiScopes, minimizeEmpty = true)
-                          (ns :+ hrefNode).right
+            .evaluate(e)
+            .flatMap(
+              _.fold[NonEmptyList[UMLError.UException] \/ NodeSeq](
+                ns.right
+              ){ eRef =>
+                eRef
+                .xmiID()
+                .flatMap { eRefID =>
+                  element2mappedDocument(eRef)
+                  .fold[NonEmptyList[UMLError.UException] \/ NodeSeq](
+                    ns.right
+                  ){ dRef =>
+                    if (d == dRef) {
+                      val idrefAttrib: MetaData =
+                        new PrefixedAttribute(pre = "xmi", key = "idref", value = eRefID, Null)
+                      val idrefNode: Node =
+                        Elem(
+                          prefix = null, label = f.propertyName,
+                          attributes = idrefAttrib, scope = xmiScopes, minimizeEmpty = true)
+                      (ns :+ idrefNode).right
+                    } else {
+                      val href = dRef.documentURL + "#" + eRefID
+                      val externalHRef: NonEmptyList[UMLError.UException] \/ String =
+                        dRef match {
+                          case _: SerializableDocument[Uml] =>
+                            href.right
+                          case _: BuiltInDocument[Uml] =>
+                            ds.builtInURIMapper.resolve(href).map(_.getOrElse(href))
                         }
+
+                      externalHRef
+                      .map { exhref =>
+                        val hrefAttrib: MetaData =
+                          new UnprefixedAttribute(key = "href", value = exhref, Null)
+                        val hrefNode: Node =
+                          Elem(
+                            prefix = null, label = f.propertyName, attributes = hrefAttrib,
+                            scope = xmiScopes, minimizeEmpty = true)
+                        (ns :+ hrefNode)
                       }
                     }
-                })
+                  }
+                }
+              })
 
           case cf: e.MetaCollectionEvaluator =>
             cf
@@ -745,41 +775,52 @@ case class ResolvedDocumentSet[Uml <: UML]
                       eRefs
                     else
                       eRefs.sortBy(_.xmiOrderingKey.getOrElse("")) // @todo propagate errors
-                  val hRefs: NodeSeq = ordered_eRefs.flatMap { eRef =>
-                      val eRefID = eRef.xmiID().getOrElse("") // @todo propagate errors
-                    val dNodes: NodeSeq =
-                      element2mappedDocument(eRef)
-                        .fold[NodeSeq](NodeSeq.Empty) { dRef =>
-                        val dNode: Node =
-                          if (d == dRef) {
-                            val idrefAttrib: MetaData =
-                              new PrefixedAttribute(pre = "xmi", key = "idref", value = eRefID, Null)
-                            val idrefNode: Node =
-                              Elem(
-                                prefix = null, label = f.propertyName,
-                                attributes = idrefAttrib, scope = xmiScopes, minimizeEmpty = true)
-                            idrefNode
-                          } else {
-                            val href = dRef.documentURL.toString + "#" + eRefID
-                            val externalHRef = dRef match {
-                              case _: SerializableDocument[Uml] =>
-                                href
-                              case _: BuiltInDocument[Uml] =>
-                                ds.builtInURIMapper.resolve(href).getOrElse(href)
-                            }
-                            val hrefAttrib: MetaData =
-                              new UnprefixedAttribute(key = "href", value = externalHRef, Null)
-                            val hrefNode: Node =
-                              Elem(
-                                prefix = null, label = f.propertyName, attributes = hrefAttrib,
-                                scope = xmiScopes, minimizeEmpty = true)
-                            hrefNode
+                  val hRef0: NonEmptyList[UMLError.UException] \/ NodeSeq = NodeSeq.Empty.right
+                  val hRefN: NonEmptyList[UMLError.UException] \/ NodeSeq = (hRef0 /: ordered_eRefs ) {
+                    (hRefi, eRef) =>
+                      eRef.xmiID()
+                        .flatMap { eRefID =>
+                          element2mappedDocument(eRef)
+                            .fold[NonEmptyList[UMLError.UException] \/ NodeSeq](
+                            NodeSeq.Empty.right
+                          ) { dRef =>
+                            val dNodes: NonEmptyList[UMLError.UException] \/ NodeSeq =
+                              if (d == dRef) {
+                                val idrefAttrib: MetaData =
+                                  new PrefixedAttribute(pre = "xmi", key = "idref", value = eRefID, Null)
+                                val idrefNode: Node =
+                                  Elem(
+                                    prefix = null, label = f.propertyName,
+                                    attributes = idrefAttrib, scope = xmiScopes, minimizeEmpty = true)
+                                \/-(idrefNode)
+                              } else {
+                                val href = dRef.documentURL.toString + "#" + eRefID
+                                val externalHRef: NonEmptyList[UMLError.UException] \/ String =
+                                  dRef match {
+                                    case _: SerializableDocument[Uml] =>
+                                      href.right
+                                    case _: BuiltInDocument[Uml] =>
+                                      ds.builtInURIMapper.resolve(href).map(_.getOrElse(href))
+                                  }
+
+                                externalHRef
+                                  .map { exhref =>
+                                    val hrefAttrib: MetaData =
+                                      new UnprefixedAttribute(key = "href", value = exhref, Null)
+                                    val hrefNode: Node =
+                                      Elem(
+                                        prefix = null, label = f.propertyName, attributes = hrefAttrib,
+                                        scope = xmiScopes, minimizeEmpty = true)
+                                    hrefNode
+                                  }
+                              }
+                            dNodes
                           }
-                        dNode
-                      }
-                      dNodes
-                    }
-                  (ns ++ hRefs).right
+                        }
+                  }
+                  hRefN.map { hRefs =>
+                    ns ++ hRefs
+                  }
                 }
               }
         }
@@ -794,7 +835,7 @@ case class ResolvedDocumentSet[Uml <: UML]
     def callGenerateNodeElement
     (f: e.MetaPropertyEvaluator,
      sub: UMLElement[Uml])
-    : Trampoline[\/[NonEmptyList[UMLError.UException], scala.xml.Node]] =
+    : Trampoline[NonEmptyList[UMLError.UException] \/ scala.xml.Node] =
       generateNodeElement(elementOrdering, d, null, f.propertyName, sub, xmiScopes)
 
     def waitGenerateNodeReference
@@ -821,7 +862,7 @@ case class ResolvedDocumentSet[Uml <: UML]
     def callGenerateNodeReference
     (f: e.MetaPropertyEvaluator,
      sub: UMLElement[Uml])
-    : Trampoline[\/[NonEmptyList[UMLError.UException], scala.xml.Node]] = {
+    : Trampoline[NonEmptyList[UMLError.UException] \/ scala.xml.Node] = {
       return_ {
         waitGenerateNodeReference(f, sub)
       }
@@ -874,7 +915,7 @@ case class ResolvedDocumentSet[Uml <: UML]
      subElements: Set[UMLElement[Uml]],
      nodes: NodeSeq,
      redefined: MetaPropertyFunctionSet)
-    : Trampoline[\/[NonEmptyList[UMLError.UException], SerializationState]] =
+    : Trampoline[NonEmptyList[UMLError.UException] \/ SerializationState] =
       subs match {
         case Nil =>
           return_ {
@@ -925,9 +966,9 @@ case class ResolvedDocumentSet[Uml <: UML]
      *      it is not serialized by default. Properties that are not derived are serialized.
      */
     @tailrec def trampolineSubNode
-    (nodes: Trampoline[\/[NonEmptyList[UMLError.UException], SerializationState]],
+    (nodes: Trampoline[NonEmptyList[UMLError.UException] \/ SerializationState],
      f: e.MetaPropertyEvaluator)
-    : Trampoline[\/[NonEmptyList[UMLError.UException], SerializationState]] = {
+    : Trampoline[NonEmptyList[UMLError.UException] \/ SerializationState] = {
 
       nodes.resume match {
         //        case -\/( s ) =>
@@ -1035,7 +1076,7 @@ case class ResolvedDocumentSet[Uml <: UML]
           // However, trampolineSubNode prepends additions so that the result is in the correct order
           // (I.e., sub-nodes for superclass properties are before sub-nodes for specialized class properties)
 
-          val xSub0: Trampoline[\/[NonEmptyList[UMLError.UException], SerializationState]] =
+          val xSub0: Trampoline[NonEmptyList[UMLError.UException] \/ SerializationState] =
             return_(\/-((Set(), Seq(), Set())))
           val xSubs = (xSub0 /: subEvaluators.reverse) (trampolineSubNode)
 

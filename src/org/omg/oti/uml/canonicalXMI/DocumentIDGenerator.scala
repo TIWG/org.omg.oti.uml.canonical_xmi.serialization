@@ -93,8 +93,9 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   : NonEmptyList[UMLError.UException] \/ Option[String] =
     element2id
     .get(e)
-    .fold[\/[NonEmptyList[UMLError.UException], Option[String]]](
-      Option.empty[String].right) { id =>
+    .fold[NonEmptyList[UMLError.UException] \/ Option[String]](
+      Option.empty[String].right
+    ){ id =>
       id.map(_.some)
     }
 
@@ -134,14 +135,14 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    to: UMLElement[Uml])
   : NonEmptyList[UMLError.UException] \/ String =
     resolvedDocumentSet.element2mappedDocument(from)
-    .fold[\/[NonEmptyList[UMLError.UException], String]] {
+    .fold[NonEmptyList[UMLError.UException] \/ String] {
       NonEmptyList(
         UMLError
         .illegalElementError[Uml, UMLElement[Uml]]("Unknown document for element reference from", Iterable(from)))
       .left
     }{ d1 =>
       resolvedDocumentSet.element2mappedDocument(to)
-      .fold[\/[NonEmptyList[UMLError.UException], String]] {
+      .fold[NonEmptyList[UMLError.UException] \/ String] {
         NonEmptyList(
           UMLError
           .illegalElementError[Uml, UMLElement[Uml]]("Unknown document for element reference to", Iterable(to)))
@@ -151,7 +152,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           require(d1 != db2)
           // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
           val bid = for {
-            builtIn_d2_id <- to.toolSpecific_id.fold[\/[NonEmptyList[UMLError.UException], String]] {
+            builtIn_d2_id <- to.toolSpecific_id.fold[NonEmptyList[UMLError.UException] \/ String] {
               -\/(
                 NonEmptyList(
                   documentIDGeneratorException(
@@ -170,7 +171,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               .toString
 
             // use the builtInURIMapper to convert the built-in URI of the 'to' element into an OMG URI
-            mappedURITo = resolvedDocumentSet.ds.builtInURIMapper.resolve(builtInURITo).getOrElse(builtInURITo)
+            mappedURITo <- resolvedDocumentSet.ds.builtInURIMapper.resolve(builtInURITo).map(_.getOrElse(builtInURITo))
             fragmentIndex = mappedURITo.lastIndexOf('#')
             _ = require(fragmentIndex > 0)
 
@@ -205,7 +206,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     element2id.getOrElseUpdate(
     self, {
       resolvedDocumentSet.element2mappedDocument( self )
-        .fold[\/[NonEmptyList[UMLError.UException], String]] {
+        .fold[NonEmptyList[UMLError.UException] \/ String] {
           NonEmptyList(
             documentIDGeneratorException(
               this,
@@ -216,7 +217,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           case d: BuiltInDocument[Uml] =>
             self
             .toolSpecific_id
-            .fold[\/[NonEmptyList[UMLError.UException], String]] {
+            .fold[NonEmptyList[UMLError.UException] \/ String] {
               NonEmptyList(
                 documentIDGeneratorException(
                   this,
@@ -262,7 +263,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     else
       self
       .owner
-      .fold[\/[NonEmptyList[UMLError.UException], String]] {
+      .fold[NonEmptyList[UMLError.UException] \/ String] {
         NonEmptyList(
           documentIDGeneratorException(
             this,
@@ -273,7 +274,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         self
         .getContainingMetaPropertyEvaluator()(this)
         .flatMap(ocf =>
-          ocf.fold[(NonEmptyList[UMLError.UException] \/ String)]{
+          ocf.fold[NonEmptyList[UMLError.UException] \/ String]{
             -\/(NonEmptyList[UMLError.UException](documentIDGeneratorException[Uml](
               this,
               Iterable(self),
@@ -302,7 +303,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           || root.isSpecificationRoot.getOrElse(false)) =>
       root
       .name
-      .fold[\/[NonEmptyList[UMLError.UException], String]] {
+      .fold[NonEmptyList[UMLError.UException] \/ String] {
         NonEmptyList(
           documentIDGeneratorException(
             this,
@@ -324,7 +325,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     case (owner, ownerID, cf, iv: UMLInstanceValue[Uml]) =>
       iv
       .instance
-      .fold[\/[NonEmptyList[UMLError.UException], String]] {
+      .fold[NonEmptyList[UMLError.UException] \/ String] {
         NonEmptyList(
           documentIDGeneratorException(
             this,
@@ -334,7 +335,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       }{ is =>
         is
         .name
-        .fold[\/[NonEmptyList[UMLError.UException], String]] {
+        .fold[NonEmptyList[UMLError.UException] \/ String] {
           NonEmptyList(
             documentIDGeneratorException(
               this,
@@ -344,7 +345,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         }{ nInstance =>
           iv.getContainingMetaPropertyEvaluator()(this)
           .flatMap(ocf =>
-            ocf.fold[(NonEmptyList[UMLError.UException] \/ String)]{
+            ocf.fold[NonEmptyList[UMLError.UException] \/ String]{
             -\/(NonEmptyList[UMLError.UException](documentIDGeneratorException[Uml](
               this,
               Iterable(owner, iv, is),
@@ -367,7 +368,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         case s: UMLSlot[Uml] =>
           s
           .definingFeature
-          .fold[\/[NonEmptyList[UMLError.UException], String]] {
+          .fold[NonEmptyList[UMLError.UException] \/ String] {
             NonEmptyList(
               documentIDGeneratorException(
                 this,
@@ -399,7 +400,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         case bf: UMLBehavioralFeature[Uml] =>
           ( suffix1 /: bf.ownedParameter )( ( s, p ) =>
           s +++
-          p._type.fold[\/[NonEmptyList[UMLError.UException], String]]{
+          p._type.fold[NonEmptyList[UMLError.UException] \/ String]{
             NonEmptyList(
               documentIDGeneratorException(
                 this,
@@ -409,7 +410,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           }{ t =>
             t
             .name
-            .fold[\/[NonEmptyList[UMLError.UException], String]] {
+            .fold[NonEmptyList[UMLError.UException] \/ String] {
               NonEmptyList(
                 documentIDGeneratorException(
                   this,
@@ -432,7 +433,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               case (s: UMLSlot[Uml], Some(is: UMLInstanceSpecification[Uml])) if cf == Slot_value =>
                 s
                 .definingFeature
-                .fold[(NonEmptyList[UMLError.UException] \/ String)] {
+                .fold[NonEmptyList[UMLError.UException] \/ String] {
                   -\/(NonEmptyList[UMLError.UException](documentIDGeneratorException(
                     this,
                     Iterable(is, s),
@@ -545,7 +546,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     case (owner, ownerID, cf, s: UMLSlot[Uml]) =>
       s
       .definingFeature
-      .fold[\/[NonEmptyList[UMLError.UException], String]] {
+      .fold[NonEmptyList[UMLError.UException] \/ String] {
         NonEmptyList(
           documentIDGeneratorException(
             this,
@@ -555,7 +556,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       }{ sf =>
         sf
         .name
-        .fold[\/[NonEmptyList[UMLError.UException], String]] {
+        .fold[NonEmptyList[UMLError.UException] \/ String] {
           NonEmptyList(
             documentIDGeneratorException(
               this,
@@ -591,7 +592,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   def getImageLocationURL(i: UMLImage[Uml]): NonEmptyList[UMLError.UException] \/ String =
     i
     .location
-    .fold[\/[NonEmptyList[UMLError.UException], String]] {
+    .fold[NonEmptyList[UMLError.UException] \/ String] {
       NonEmptyList(
         documentIDGeneratorException(
           this,

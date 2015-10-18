@@ -344,7 +344,9 @@ object DocumentSet {
         l.value.right
       case iv: UMLInstanceValue[Uml] =>
         iv.instance
-        .fold[\/[NonEmptyList[UMLError.UException], Option[String]]](Option.empty[String].right){ is =>
+        .fold[NonEmptyList[UMLError.UException] \/ Option[String]](
+          Option.empty[String].right
+        ){ is =>
           is.xmiID.map(_.some)
         }
       case v =>
