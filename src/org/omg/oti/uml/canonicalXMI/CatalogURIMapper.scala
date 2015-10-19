@@ -74,7 +74,7 @@ case class CatalogURIMapper(
     this(catalogManager, new CatalogResolver(catalogManager))
 
   def parseCatalog(catalogURI: URI)
-  : NonEmptyList[UMLError.UException] \/ Unit =
+  : NonEmptyList[java.lang.Throwable] \/ Unit =
     catching(classOf[java.io.IOException])
     .withApply{ cause: java.lang.Throwable =>
       NonEmptyList(catalogURIMapperException(s"failed to parse catalog: $catalogURI", cause.some)).left
@@ -84,7 +84,7 @@ case class CatalogURIMapper(
   def loadResolutionStrategy
   (appendDocumentExtensionUnlessPresent: Option[String])
   (resolved: String)
-  : NonEmptyList[UMLError.UException] \/ Option[URI] =
+  : NonEmptyList[java.lang.Throwable] \/ Option[URI] =
 
     if (!appendDocumentExtensionUnlessPresent.getOrElse(".").startsWith("."))
       NonEmptyList(
@@ -116,7 +116,7 @@ case class CatalogURIMapper(
 
   def loadResolutionStrategyPair
   (f1: URL, f2: URL)
-  : NonEmptyList[UMLError.UException] \/ Option[URI] =
+  : NonEmptyList[java.lang.Throwable] \/ Option[URI] =
     catching(
       classOf[java.io.IOException],
       classOf[java.lang.SecurityException],
@@ -135,7 +135,7 @@ case class CatalogURIMapper(
         }
 
       r1
-      .fold[NonEmptyList[UMLError.UException] \/ Option[URI]](
+      .fold[NonEmptyList[java.lang.Throwable] \/ Option[URI]](
           catching(
             classOf[java.io.IOException],
             classOf[java.lang.SecurityException])
@@ -153,7 +153,7 @@ case class CatalogURIMapper(
               f1.toURI
             }
             r2
-              .fold[NonEmptyList[UMLError.UException] \/ Option[URI]](
+              .fold[NonEmptyList[java.lang.Throwable] \/ Option[URI]](
               Option.empty[URI].right
             ) { uri: URI =>
               uri.some.right
@@ -165,7 +165,7 @@ case class CatalogURIMapper(
     })
 
   def saveResolutionStrategy(resolved: String)
-  : NonEmptyList[UMLError.UException] \/ Option[URI] =
+  : NonEmptyList[java.lang.Throwable] \/ Option[URI] =
     catching(
       classOf[java.io.IOException],
       classOf[java.lang.SecurityException],
@@ -203,7 +203,7 @@ case class CatalogURIMapper(
   })
 
   def resolve(uri: String)
-  : NonEmptyList[UMLError.UException] \/ Option[String] =
+  : NonEmptyList[java.lang.Throwable] \/ Option[String] =
     catching(classOf[java.net.MalformedURLException])
     .withApply { cause: java.lang.Throwable =>
       NonEmptyList(
@@ -218,8 +218,8 @@ case class CatalogURIMapper(
 
   def resolveURI
   ( uri: URI,
-    resolutionStrategy: (String) => NonEmptyList[UMLError.UException] \/ Option[URI])
-  : NonEmptyList[UMLError.UException] \/ Option[URI] = {
+    resolutionStrategy: (String) => NonEmptyList[java.lang.Throwable] \/ Option[URI])
+  : NonEmptyList[java.lang.Throwable] \/ Option[URI] = {
 
     val rawPath = uri.toString
     val iriPath =
@@ -238,7 +238,7 @@ case class CatalogURIMapper(
     .apply(
       resolve(iriPath)
       .flatMap {
-        _.fold[NonEmptyList[UMLError.UException] \/ Option[URI]](
+        _.fold[NonEmptyList[java.lang.Throwable] \/ Option[URI]](
           Option.empty[URI].right
         ) { resolved =>
           resolutionStrategy(resolved)
@@ -261,14 +261,14 @@ object CatalogURIMapper {
   def createMapperFromCatalogFiles
   ( catalogFiles: Seq[java.io.File],
     verbosity: Int = 0)
-  : NonEmptyList[UMLError.UException] \/ CatalogURIMapper = {
+  : NonEmptyList[java.lang.Throwable] \/ CatalogURIMapper = {
     val catalog = new CatalogManager()
     catalog.setUseStaticCatalog(false)
     catalog.setRelativeCatalogs(true)
     catalog.setVerbosity(verbosity)
     val mapper = new CatalogURIMapper(catalog)
-    val c0: NonEmptyList[UMLError.UException] \/ CatalogURIMapper = mapper.right
-    val cN: NonEmptyList[UMLError.UException] \/ CatalogURIMapper =
+    val c0: NonEmptyList[java.lang.Throwable] \/ CatalogURIMapper = mapper.right
+    val cN: NonEmptyList[java.lang.Throwable] \/ CatalogURIMapper =
       ( c0 /: catalogFiles) { ( ci, catalogFile ) =>
       if (!catalogFile.exists)
         ci +++
@@ -293,14 +293,14 @@ object CatalogURIMapper {
   def createMapperFromCatalogURIs
   ( catalogURIs: Seq[URI],
     verbosity: Int = 0)
-  : NonEmptyList[UMLError.UException] \/ CatalogURIMapper = {
+  : NonEmptyList[java.lang.Throwable] \/ CatalogURIMapper = {
     val catalog = new CatalogManager()
     catalog.setUseStaticCatalog(false)
     catalog.setRelativeCatalogs(true)
     catalog.setVerbosity(verbosity)
     val mapper = new CatalogURIMapper(catalog)
-    val c0: NonEmptyList[UMLError.UException] \/ CatalogURIMapper = mapper.right
-    val cN: NonEmptyList[UMLError.UException] \/ CatalogURIMapper =
+    val c0: NonEmptyList[java.lang.Throwable] \/ CatalogURIMapper = mapper.right
+    val cN: NonEmptyList[java.lang.Throwable] \/ CatalogURIMapper =
       ( c0 /: catalogURIs) { ( ci, catalogURI ) =>
       ci +++ mapper.parseCatalog(catalogURI).map( _ => mapper)
     }

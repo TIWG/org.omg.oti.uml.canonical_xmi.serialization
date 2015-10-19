@@ -171,7 +171,7 @@ trait DocumentSet[Uml <: UML] {
   def resolve
   (ignoreCrossReferencedElementFilter: UMLElement[Uml] => Boolean,
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]])
-  : NonEmptyList[UMLError.UException] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
+  : NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
 
     val allDocuments = serializableDocuments ++ builtInDocuments
 
@@ -233,8 +233,8 @@ trait DocumentSet[Uml <: UML] {
     // add the edges among built-in documents.
     g ++= builtInDocumentEdges
 
-    val u0: NonEmptyList[UMLError.UException] \/ Set[UnresolvedElementCrossReference[Uml]] = Set().right
-    val uN: NonEmptyList[UMLError.UException] \/ Set[UnresolvedElementCrossReference[Uml]] =
+    val u0: NonEmptyList[java.lang.Throwable] \/ Set[UnresolvedElementCrossReference[Uml]] = Set().right
+    val uN: NonEmptyList[java.lang.Throwable] \/ Set[UnresolvedElementCrossReference[Uml]] =
       (u0 /: element2document) { case (ui, (e, d)) =>
 
       ui +++
@@ -332,7 +332,7 @@ object DocumentSet {
   def serializeValueSpecificationAsTagValue[Uml <: UML]
   (value: UMLValueSpecification[Uml])
   (implicit idg: IDGenerator[Uml])
-  : NonEmptyList[UMLError.UException] \/ Option[String] =
+  : NonEmptyList[java.lang.Throwable] \/ Option[String] =
     value match {
       case l: UMLLiteralBoolean[Uml] =>
         l.value.toString.some.right
@@ -344,7 +344,7 @@ object DocumentSet {
         l.value.right
       case iv: UMLInstanceValue[Uml] =>
         iv.instance
-        .fold[NonEmptyList[UMLError.UException] \/ Option[String]](
+        .fold[NonEmptyList[java.lang.Throwable] \/ Option[String]](
           Option.empty[String].right
         ){ is =>
           is.xmiID.map(_.some)
@@ -371,14 +371,14 @@ object DocumentSet {
    otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]],
    nodeT: TypeTag[Document[Uml]],
    edgeT: TypeTag[DocumentEdge[Document[Uml]]])
-  : NonEmptyList[UMLError.UException] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
+  : NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
 
     import documentOps._
 
-    val p0: NonEmptyList[UMLError.UException] \/ (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]]) =
+    val p0: NonEmptyList[java.lang.Throwable] \/ (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]]) =
       (Set[UMLPackage[Uml]](), Set[UMLPackage[Uml]]()).right
 
-    val pN: NonEmptyList[UMLError.UException] \/ (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]]) =
+    val pN: NonEmptyList[java.lang.Throwable] \/ (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]]) =
       (p0 /: specificationRootPackages) { (pi, pkg) =>
         pi +++
         pkg.getEffectiveURI.map( ouri =>
@@ -389,26 +389,26 @@ object DocumentSet {
         )
       }
 
-    val pd: NonEmptyList[UMLError.UException] \/ (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]]) =
+    val pd: NonEmptyList[java.lang.Throwable] \/ (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]]) =
       pN
 
-    val pv: NonEmptyList[UMLError.UException] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
+    val pv: NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
       pd
-      .flatMap[NonEmptyList[UMLError.UException], (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] {
+      .flatMap[NonEmptyList[java.lang.Throwable], (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] {
         case (roots: Set[UMLPackage[Uml]], anonymousRoots: Set[UMLPackage[Uml]]) =>
 
-        val result: NonEmptyList[UMLError.UException] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
+        val result: NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
         if (anonymousRoots.nonEmpty)
-          -\/(NonEmptyList[UMLError.UException](
+          -\/(NonEmptyList[java.lang.Throwable](
             UMLError
             .illegalElementError[Uml, UMLPackage[Uml]](
               "Document-level packages must have an effective URI for export",
               anonymousRoots)))
         else {
 
-          val r0: NonEmptyList[UMLError.UException] \/ Set[SerializableDocument[Uml]] =
+          val r0: NonEmptyList[java.lang.Throwable] \/ Set[SerializableDocument[Uml]] =
             \/-(Set())
-          val rN: NonEmptyList[UMLError.UException] \/ Set[SerializableDocument[Uml]] =
+          val rN: NonEmptyList[java.lang.Throwable] \/ Set[SerializableDocument[Uml]] =
             (r0 /: roots) { (ri, root) =>
               ri +++ createSerializableDocumentFromExistingRootPackage(root).map(Set(_))
             }

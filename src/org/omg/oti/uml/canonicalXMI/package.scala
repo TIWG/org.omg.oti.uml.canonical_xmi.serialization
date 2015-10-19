@@ -57,14 +57,14 @@ package object canonicalXMI {
   def catalogURIMapperException
   (message: String,
    cause: Option[java.lang.Throwable] = None)
-  : UMLError.UException =
+  : java.lang.Throwable =
     new CatalogURIMapperException(message, cause)
 
   def resolvedDocumentSetException[Uml <: UML]
   (rds: ResolvedDocumentSet[Uml],
    message: String,
    cause: Option[java.lang.Throwable] = None)
-  : UMLError.UException =
+  : java.lang.Throwable =
     new ResolvedDocumentSetException(rds, message, cause)
 
   def documentIDGeneratorException[Uml <: UML]
@@ -72,14 +72,14 @@ package object canonicalXMI {
    elements: Iterable[UMLElement[Uml]],
    message: String,
    cause: Option[java.lang.Throwable] = None)
-  : UMLError.UException =
+  : java.lang.Throwable =
     new DocumentIDGeneratorException(idGenerator, elements, message, cause)
 
   def documentOpsException[Uml <: UML]
   ( dOps: DocumentOps[Uml],
     message: String,
     cause: Option[java.lang.Throwable] = None)
-  : UMLError.UException =
+  : java.lang.Throwable =
     new DocumentOpsException(dOps, message, cause)
 
 }
