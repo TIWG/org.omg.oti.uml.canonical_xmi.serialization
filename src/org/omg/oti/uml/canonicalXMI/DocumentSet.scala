@@ -358,6 +358,17 @@ object DocumentSet {
         .left
     }
 
+  def isPackageRootOfSpecificationDocument[Uml <: UML]
+  (pkg: UMLPackage[Uml])
+  (implicit otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]])
+  : NonEmptyList[java.lang.Throwable] \/ Boolean =
+  for {
+    pkgURI <- pkg.getEffectiveURI
+    docURL <- pkg.getDocumentURL()
+  } yield
+    pkgURI.isDefined &&
+    docURL.isDefined
+
   def constructDocumentSetCrossReferenceGraph[Uml <: UML]
   (specificationRootPackages: Set[UMLPackage[Uml]],
    documentURIMapper: CatalogURIMapper,
@@ -371,72 +382,67 @@ object DocumentSet {
    otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]],
    nodeT: TypeTag[Document[Uml]],
    edgeT: TypeTag[DocumentEdge[Document[Uml]]])
-  : NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
+  : NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
 
     import documentOps._
 
-    val p0: NonEmptyList[java.lang.Throwable] \/ (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]]) =
-      (Set[UMLPackage[Uml]](), Set[UMLPackage[Uml]]()).right
+    object ResultSetAggregator {
+      def zero[A]:  NonEmptyList[java.lang.Throwable] \&/ Set[A] = \&/.That(Set[A]())
+    }
 
-    val pN: NonEmptyList[java.lang.Throwable] \/ (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]]) =
-      (p0 /: specificationRootPackages) { (pi, pkg) =>
-        pi +++
-        pkg.getEffectiveURI.map( ouri =>
-          if (ouri.isDefined)
-            (Set(pkg), Set())
+    trait ResultSetAggregator[A] extends Monoid[NonEmptyList[java.lang.Throwable] \&/ Set[A]] {
+      type F = NonEmptyList[java.lang.Throwable] \&/ Set[A]
+      override def zero: F = ResultSetAggregator.zero[A]
+      override def append(f1: F, f2: => F): F = f1 append f2
+    }
+
+    val roots: ResultSetAggregator[UMLPackage[Uml]]#F =
+      ( ResultSetAggregator.zero[UMLPackage[Uml]] /: specificationRootPackages ) { (acc, pkg) =>
+        acc append
+        isPackageRootOfSpecificationDocument(pkg)
+        .map { ok =>
+          if (ok)
+            Set[UMLPackage[Uml]](pkg)
           else
-            (Set(), Set(pkg))
-        )
+            Set[UMLPackage[Uml]]()
+        }
+        .toThese
       }
 
-    val pd: NonEmptyList[java.lang.Throwable] \/ (Set[UMLPackage[Uml]], Set[UMLPackage[Uml]]) =
-      pN
+    val documents: ResultSetAggregator[SerializableDocument[Uml]]#F =
+      roots.flatMap { _roots =>
+        ( ResultSetAggregator.zero[SerializableDocument[Uml]] /: _roots ) { (acc, root) =>
+          acc append
+          createSerializableDocumentFromExistingRootPackage(root).map(Set(_))
+          .toThese
+        }
+      }
 
-    val pv: NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
-      pd
-      .flatMap[NonEmptyList[java.lang.Throwable], (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]])] {
-        case (roots: Set[UMLPackage[Uml]], anonymousRoots: Set[UMLPackage[Uml]]) =>
+    val result
+    :  NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
+    documents
+    .flatMap { serializableDocuments =>
 
-        val result: NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
-        if (anonymousRoots.nonEmpty)
-          -\/(NonEmptyList[java.lang.Throwable](
-            UMLError
-            .illegalElementError[Uml, UMLPackage[Uml]](
-              "Document-level packages must have an effective URI for export",
-              anonymousRoots)))
-        else {
+      val ds
+      : NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
+      createDocumentSet(
+        serializableDocuments,
+        builtInDocuments,
+        builtInDocumentEdges,
+        documentURIMapper,
+        builtInURIMapper,
+        aggregate)
+        .flatMap { ds =>
+          ds
+          .resolve(
+              ignoreCrossReferencedElementFilter,
+              unresolvedElementMapper)
 
-          val r0: NonEmptyList[java.lang.Throwable] \/ Set[SerializableDocument[Uml]] =
-            \/-(Set())
-          val rN: NonEmptyList[java.lang.Throwable] \/ Set[SerializableDocument[Uml]] =
-            (r0 /: roots) { (ri, root) =>
-              ri +++ createSerializableDocumentFromExistingRootPackage(root).map(Set(_))
-            }
-
-          rN
-            .flatMap { serializableDocuments =>
-              createDocumentSet(
-                serializableDocuments,
-                builtInDocuments,
-                builtInDocumentEdges,
-                documentURIMapper,
-                builtInURIMapper,
-                aggregate)
-                .flatMap { ds =>
-
-                  ds
-                    .resolve(
-                      ignoreCrossReferencedElementFilter,
-                      unresolvedElementMapper)
-
-                }
-            }
         }
 
-        result
-      }
+      ds.toThese
+    }
 
-    pv
-
+    result
   }
 }
