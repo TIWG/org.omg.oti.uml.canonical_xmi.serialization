@@ -44,7 +44,6 @@ import org.omg.oti.uml.xmi._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations._
 
-import scala.{Option,None}
 import scala.Predef.String
 import scala.collection.immutable._
 import scala.reflect.runtime.universe._
@@ -57,7 +56,7 @@ import java.net.URI
 class DocumentOpsException[Uml <: UML]
 ( dOps: DocumentOps[Uml],
   override val message: String,
-  override val cause: Option[java.lang.Throwable] = None)
+  override val cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   extends UMLError.UException(message, cause) {
 
   /**

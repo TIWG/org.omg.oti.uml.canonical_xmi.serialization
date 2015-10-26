@@ -117,7 +117,7 @@ case class UnresolvedElementCrossReference[Uml <: UML]
 
 class DocumentSetException
 (override val message: String,
- override val cause: Option[java.lang.Throwable] = None)
+ override val cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   extends UMLError.UException(message, cause)
 
 /**

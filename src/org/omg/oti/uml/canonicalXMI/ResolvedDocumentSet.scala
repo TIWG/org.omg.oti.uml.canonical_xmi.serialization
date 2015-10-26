@@ -58,7 +58,7 @@ import scalaz._, Free._, Scalaz._
 class ResolvedDocumentSetException[Uml <: UML]
 (rds: ResolvedDocumentSet[Uml],
  override val message: String,
- override val cause: Option[java.lang.Throwable])
+ override val cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   extends UMLError.UException(message, cause) {
 
   /**
@@ -112,7 +112,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                     UMLError
                       .illegalElementError[Uml, UMLStereotype[Uml]](
                       s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
-                      Iterable(s)).some)))
+                      Iterable(s)))))
             ) {
               case d: BuiltInDocument[Uml] =>
                 dOps
@@ -131,7 +131,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                               UMLError
                                 .illegalElementError[Uml, UMLStereotype[Uml]](
                                 s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
-                                Iterable(s)).some)))
+                                Iterable(s)))))
                     }
                     .apply({
                       val builtInURI = url.resolve("#" + _id).toString
@@ -158,7 +158,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                       UMLError
                         .illegalElementError[Uml, UMLStereotype[Uml]](
                         s"Unrecognized document $d for stereotype ${s.qualifiedName.get} (ID=${_id})",
-                        Iterable(s)).some)))
+                        Iterable(s)))))
             }
           }
       }
@@ -203,8 +203,7 @@ case class ResolvedDocumentSet[Uml <: UML]
           UMLError
             .illegalElementError[Uml, UMLPackage[Uml]](
             s"Serialization failed: no document found for ${pkg.qualifiedName.get}",
-            Iterable(pkg))
-            .some))
+            Iterable(pkg))))
         .left
     } { d =>
       serialize(d)
@@ -236,7 +235,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                     this,
                     s"serialize failed: Cannot serialize document "
                       + s"${d.uri} mapped for save to $ruri: ${t.getMessage}",
-                    t.some)))
+                    t)))
             case \/-(furi) =>
               val s = d.scope.xmiID.flatMap { d_id =>
                 d.scope.xmiUUID.flatMap { d_uuid =>
@@ -485,7 +484,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                     this,
                     s"serialize failed: Cannot save XMI serialization "
                       + s"${d.uri} to file: $xmlFile: ${t.getMessage}",
-                    t.some)).left
+                    t)).left
               case \/-(file) =>
                 Set[(SerializableDocument[Uml], java.io.File)]((d, file)).right
             }

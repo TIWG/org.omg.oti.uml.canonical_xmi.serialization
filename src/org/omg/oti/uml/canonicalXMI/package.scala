@@ -44,6 +44,7 @@ import org.omg.oti.uml.read.api.{UMLElement, UML}
 import scala.collection.immutable.Iterable
 import scala.{Option,None}
 import scala.Predef.String
+import scalaz._, Scalaz._
 
 /**
  * = Generic OTI-based facilities for OMG XMI Documents and OMG MOF Extents =
@@ -56,30 +57,58 @@ package object canonicalXMI {
 
   def catalogURIMapperException
   (message: String,
-   cause: Option[java.lang.Throwable] = None)
+   cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   : java.lang.Throwable =
     new CatalogURIMapperException(message, cause)
+
+  def catalogURIMapperException
+  (message: String,
+   cause: java.lang.Throwable)
+  : java.lang.Throwable =
+    new CatalogURIMapperException(message, cause.wrapNel.some)
 
   def resolvedDocumentSetException[Uml <: UML]
   (rds: ResolvedDocumentSet[Uml],
    message: String,
-   cause: Option[java.lang.Throwable] = None)
+   cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   : java.lang.Throwable =
     new ResolvedDocumentSetException(rds, message, cause)
+
+  def resolvedDocumentSetException[Uml <: UML]
+  (rds: ResolvedDocumentSet[Uml],
+   message: String,
+   cause: java.lang.Throwable)
+  : java.lang.Throwable =
+    new ResolvedDocumentSetException(rds, message, cause.wrapNel.some)
 
   def documentIDGeneratorException[Uml <: UML]
   (idGenerator: DocumentIDGenerator[Uml],
    elements: Iterable[UMLElement[Uml]],
    message: String,
-   cause: Option[java.lang.Throwable] = None)
+   cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   : java.lang.Throwable =
     new DocumentIDGeneratorException(idGenerator, elements, message, cause)
+
+  def documentIDGeneratorException[Uml <: UML]
+  (idGenerator: DocumentIDGenerator[Uml],
+   elements: Iterable[UMLElement[Uml]],
+   message: String,
+   cause: java.lang.Throwable)
+  : java.lang.Throwable =
+    new DocumentIDGeneratorException(idGenerator, elements, message, cause.wrapNel.some)
 
   def documentOpsException[Uml <: UML]
   ( dOps: DocumentOps[Uml],
     message: String,
-    cause: Option[java.lang.Throwable] = None)
+    cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   : java.lang.Throwable =
     new DocumentOpsException(dOps, message, cause)
+
+  def documentOpsException[Uml <: UML]
+  ( dOps: DocumentOps[Uml],
+    message: String,
+    cause: java.lang.Throwable)
+  : java.lang.Throwable =
+    new DocumentOpsException(dOps, message, cause.wrapNel.some)
 
 }

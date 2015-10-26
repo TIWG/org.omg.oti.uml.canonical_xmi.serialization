@@ -60,7 +60,7 @@ class DocumentIDGeneratorException[Uml <: UML]
 (idGenerator: DocumentIDGenerator[Uml],
  override val element: Iterable[UMLElement[Uml]],
  override val message: String,
- override val cause: Option[java.lang.Throwable])
+ override val cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   extends UMLError.UElementException[Uml, UMLElement[Uml]](element, message, cause)
 
 /**
@@ -607,7 +607,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               this,
               Iterable(i),
               "getImageLocationURL error",
-              cause.some))
+              cause))
             .left
         }
         .apply({

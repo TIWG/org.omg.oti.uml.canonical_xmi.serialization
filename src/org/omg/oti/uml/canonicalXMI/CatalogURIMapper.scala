@@ -58,7 +58,7 @@ import org.apache.xml.resolver.tools.CatalogResolver
 
 class CatalogURIMapperException
 (override val message: String,
- override val cause: Option[java.lang.Throwable] = None)
+ override val cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   extends UMLError.UException(message, cause)
 
 case class CatalogURIMapper(
@@ -77,7 +77,7 @@ case class CatalogURIMapper(
   : NonEmptyList[java.lang.Throwable] \/ Unit =
     catching(classOf[java.io.IOException])
     .withApply{ cause: java.lang.Throwable =>
-      NonEmptyList(catalogURIMapperException(s"failed to parse catalog: $catalogURI", cause.some)).left
+      NonEmptyList(catalogURIMapperException(s"failed to parse catalog: $catalogURI", cause)).left
     }
     .apply(catalog.parseCatalog(catalogURI.toURL).right)
 
@@ -92,13 +92,13 @@ case class CatalogURIMapper(
           "The document extension, when specified, must start with '.'",
           new java.lang.IllegalArgumentException(
             s"Illegal value for appendDocumentExtensionUnlessPresent: " +
-              s"'$appendDocumentExtensionUnlessPresent'").some)).left
+              s"'$appendDocumentExtensionUnlessPresent'"))).left
 
     else
       catching(classOf[java.io.IOException])
       .withApply { cause: java.lang.Throwable =>
         NonEmptyList(
-          catalogURIMapperException(s"failed to parse '$resolved' as a URL", cause.some)).left
+          catalogURIMapperException(s"failed to parse '$resolved' as a URL", cause)).left
       }
       .apply({
         val normalized = new URI(resolved)
@@ -177,7 +177,7 @@ case class CatalogURIMapper(
       NonEmptyList(
         catalogURIMapperException(
           s"saveResolutionStrategy: resolved=$resolved failed: ${cause.getMessage}",
-          cause.some)
+          cause)
       ).left
   }
   .apply({
@@ -207,7 +207,7 @@ case class CatalogURIMapper(
     catching(classOf[java.net.MalformedURLException])
     .withApply { cause: java.lang.Throwable =>
       NonEmptyList(
-        catalogURIMapperException(s"resolve(uri=$uri) failed: ${cause.getMessage}", cause.some)
+        catalogURIMapperException(s"resolve(uri=$uri) failed: ${cause.getMessage}", cause)
       ).left
     }
     .apply(
@@ -232,7 +232,7 @@ case class CatalogURIMapper(
       classOf[java.io.IOException])
     .withApply { t: java.lang.Throwable =>
       NonEmptyList(
-        catalogURIMapperException(s"resolveURI(uri=$uri) failed", t.some)
+        catalogURIMapperException(s"resolveURI(uri=$uri) failed", t)
       ).left
     }
     .apply(
@@ -275,7 +275,7 @@ object CatalogURIMapper {
           NonEmptyList(
             catalogURIMapperException(
               s"createMapperFromCatalogFiles failed",
-              new java.io.FileNotFoundException(catalogFile.getAbsolutePath).some)).left
+              new java.io.FileNotFoundException(catalogFile.getAbsolutePath))).left
       else
         ci +++ mapper.parseCatalog(catalogFile.toURI).map( _ => mapper)
     }
