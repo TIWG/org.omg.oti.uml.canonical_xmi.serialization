@@ -381,8 +381,9 @@ object DocumentSet {
    ignoreCrossReferencedElementFilter: Function1[UMLElement[Uml], Boolean],
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
    aggregate: Uml#DocumentSetAggregate)
-  (implicit ops: UMLOps[Uml], documentOps: DocumentOps[Uml],
-   otiCharacteristicsProvider: OTICharacteristicsProvider[Uml],
+  (implicit
+   ops: UMLOps[Uml],
+   documentOps: DocumentOps[Uml],
    nodeT: TypeTag[Document[Uml]],
    edgeT: TypeTag[DocumentEdge[Document[Uml]]])
   : NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {

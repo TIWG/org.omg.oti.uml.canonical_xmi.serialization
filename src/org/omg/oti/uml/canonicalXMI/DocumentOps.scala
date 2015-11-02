@@ -40,6 +40,7 @@
 package org.omg.oti.uml.canonicalXMI
 
 import org.omg.oti.uml.UMLError
+import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
 import org.omg.oti.uml.xmi._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations._
@@ -75,6 +76,8 @@ class DocumentOpsException[Uml <: UML]
  * @tparam Uml Type signature of a tool-specific adaptation of OMG UML 2.5
  */
 trait DocumentOps[Uml <: UML] {
+
+  implicit val otiCharacteristicsProvider: OTICharacteristicsProvider[Uml]
 
   /**
    * Get the URI of the document as an externally accessible resource.
