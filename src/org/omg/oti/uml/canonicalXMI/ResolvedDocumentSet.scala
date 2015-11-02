@@ -140,7 +140,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                         val fragmentIndex = mappedURI.lastIndexOf('#')
                         require(fragmentIndex > 0)
                         val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
-                        Tuple2(fragment, "omg.org." + d.nsPrefix.toLowerCase(java.util.Locale.ROOT) + fragment)
+                        Tuple2(fragment, "omg.org." + d.info.nsPrefix.toLowerCase(java.util.Locale.ROOT) + fragment)
                       }
                     })
                 }
@@ -221,10 +221,10 @@ case class ResolvedDocumentSet[Uml <: UML]
   : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] =
     ds
       .documentURIMapper
-      .resolveURI(d.uri, ds.documentURIMapper.saveResolutionStrategy)
+      .resolveURI(new java.net.URI(d.info.packageURI), ds.documentURIMapper.saveResolutionStrategy)
       .flatMap { ruri =>
 
-        val uri = ruri.getOrElse(d.uri)
+        val uri = ruri.getOrElse(new java.net.URI(d.info.packageURI))
         val result: NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] =
           \/.fromTryCatchThrowable[java.io.File, java.io.IOException](new java.io.File(uri)) match {
             case -\/(t) =>
@@ -233,7 +233,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                   resolvedDocumentSetException(
                     this,
                     s"serialize failed: Cannot serialize document "
-                      + s"${d.uri} mapped for save to $ruri: ${t.getMessage}",
+                      + s"${d.info.packageURI} mapped for save to $ruri: ${t.getMessage}",
                     t)))
             case \/-(furi) =>
               val s = d.scope.xmiID.flatMap { d_id =>
@@ -482,7 +482,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                   resolvedDocumentSetException(
                     this,
                     s"serialize failed: Cannot save XMI serialization "
-                      + s"${d.uri} to file: $xmlFile: ${t.getMessage}",
+                      + s"${d.info.packageURI} to file: $xmlFile: ${t.getMessage}",
                     t)).left
               case \/-(file) =>
                 Set[(SerializableDocument[Uml], java.io.File)]((d, file)).right

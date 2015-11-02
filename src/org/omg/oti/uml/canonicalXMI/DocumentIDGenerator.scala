@@ -527,7 +527,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               val targetID =
                 resolvedDocumentSet.element2mappedDocument(relTarget) match {
                   case Some(d: BuiltInDocument[Uml]) =>
-                    IDGenerator.xmlSafeID(d.uri.toString() + "." + tid)
+                    IDGenerator.xmlSafeID(d.info.packageURI.toString() + "." + tid)
                   case _ =>
                     tid
                 }
