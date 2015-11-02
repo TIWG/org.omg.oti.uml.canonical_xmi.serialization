@@ -76,7 +76,6 @@ case class ResolvedDocumentSet[Uml <: UML]
  unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]]) {
 
   implicit val dOps = ds.documentOps
-  implicit val otiCh = ds.otiCharacterizations
 
   def isElementMapped2Document(e: UMLElement[Uml]): Boolean =
     element2mappedDocument(e).nonEmpty
@@ -93,7 +92,7 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   def getStereotype_ID_UUID
   (s: UMLStereotype[Uml])
-  (implicit idg: IDGenerator[Uml], dOps: DocumentOps[Uml])
+  (implicit idg: IDGenerator[Uml]) 
   : NonEmptyList[java.lang.Throwable] \/ (String, String) = {
     s
       .xmiID()

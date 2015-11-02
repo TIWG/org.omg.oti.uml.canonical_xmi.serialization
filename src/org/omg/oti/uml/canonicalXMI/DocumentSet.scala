@@ -39,21 +39,24 @@
  */
 package org.omg.oti.uml.canonicalXMI
 
+import java.io.{BufferedWriter,FileWriter,PrintWriter,Serializable}
+import java.lang.{IllegalArgumentException,System}
+
 import org.omg.oti.uml.UMLError
 import org.omg.oti.uml.characteristics._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.xmi._
+
 import scala.annotation.tailrec
-import scala.language.higherKinds
-import scala.language.implicitConversions
-import scala.language.postfixOps
+import scala.language.{higherKinds,implicitConversions,postfixOps}
 import scala.reflect.runtime.universe
 import scala.reflect.runtime.universe._
 import scala.{Boolean,Either,Function1,Option,Left,None,Right,Product,Some,StringContext}
 import scala.Predef.{Map =>_, Set =>_,_}
 import scala.collection.immutable._
 import scala.collection.Iterable
+
 import scalax.collection.config.CoreConfig
 import scalax.collection.mutable.ArraySet.Hints
 import scalax.collection.GraphEdge._
@@ -64,12 +67,6 @@ import scalax.collection.constrained.generic.GraphConstrainedCompanion
 import scalax.collection.io.edge.CEdgeParameters
 import scalax.collection.io.json.descriptor.CEdgeDescriptor
 import scalax.collection.io.json.descriptor.NodeDescriptor
-import java.io.Serializable
-import java.lang.System
-import java.lang.IllegalArgumentException
-import java.io.FileWriter
-import java.io.BufferedWriter
-import java.io.PrintWriter
 
 import scalaz._, Scalaz._
 
@@ -135,7 +132,7 @@ trait DocumentSet[Uml <: UML] {
   val aggregate: Uml#DocumentSetAggregate
   
   implicit val ops: UMLOps[Uml]
-  implicit val otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]]
+  implicit val otiCharacteristicsProvider: OTICharacteristicsProvider[Uml]
   implicit val documentOps: DocumentOps[Uml]
   implicit val nodeT: TypeTag[Document[Uml]]
   implicit val edgeT: TypeTag[DocumentEdge[Document[Uml]]]
