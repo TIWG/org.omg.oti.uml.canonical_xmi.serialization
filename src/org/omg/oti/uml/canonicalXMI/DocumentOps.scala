@@ -104,11 +104,15 @@ trait DocumentOps[Uml <: UML] {
    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
    *
    * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
+   * @param documentURL the `LoadURL` information about the external URL from where
+   *                    the serializable document contents will be read into the contents of
+   *                    the root package
    * @param scope the root package scope of the OTI serializable document
    * @return If successful, a SerializableDocument for the `root` package scope
    */
    def createSerializableDocumentFromImportedRootPackage
    (info: OTISpecificationRootCharacteristics,
+    documentURL: Uml#LoadURL,
     scope: UMLPackage[Uml])
    (implicit ds: DocumentSet[Uml])
    : NonEmptyList[java.lang.Throwable] \/ SerializableDocument[Uml]
