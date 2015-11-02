@@ -107,13 +107,13 @@ trait DocumentOps[Uml <: UML] {
    * @param documentURL the `LoadURL` information about the external URL from where
    *                    the serializable document contents will be read into the contents of
    *                    the root package
-   * @param scope the root package scope of the OTI serializable document
+   * @param root the root package scope of the OTI serializable document
    * @return If successful, a SerializableDocument for the `root` package scope
    */
    def createSerializableDocumentFromImportedRootPackage
    (info: OTISpecificationRootCharacteristics,
     documentURL: Uml#LoadURL,
-    scope: UMLPackage[Uml])
+    root: UMLPackage[Uml])
    (implicit ds: DocumentSet[Uml])
    : NonEmptyList[java.lang.Throwable] \/ SerializableDocument[Uml]
 
@@ -125,6 +125,8 @@ trait DocumentOps[Uml <: UML] {
    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
    *
    * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
+   * @param documentURL the `LoadURL` information about the external URL from where
+   *                    the contents of built-in document contents correspond to those of the root package
    * @param root a tool-specific root package corresponding to the tool-specific implementation
    *             of an OMG-defined document (e.g., the OMG UML2.5 PrimitiveTypes library)
    * @return A BuiltInDocument if the `root` package is recognized as the root package scope of
@@ -132,6 +134,7 @@ trait DocumentOps[Uml <: UML] {
    */
    def createBuiltInDocumentFromBuiltInRootPackage
    (info: OTISpecificationRootCharacteristics,
+    documentURL: Uml#LoadURL,
     root: UMLPackage[Uml])
    : NonEmptyList[java.lang.Throwable] \/ BuiltInDocument[Uml]
 
