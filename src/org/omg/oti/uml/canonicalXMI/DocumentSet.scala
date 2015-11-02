@@ -370,12 +370,12 @@ object DocumentSet {
     docURL.isDefined
 
   def constructDocumentSetCrossReferenceGraph[Uml <: UML]
-  (specificationRootPackages: Set[UMLPackage[Uml]],
+  (specificationRootPackages: Map[UMLPackage[Uml], OTISpecificationRootCharacteristics],
    documentURIMapper: CatalogURIMapper,
    builtInURIMapper: CatalogURIMapper,
    builtInDocuments: Set[BuiltInDocument[Uml]],
    builtInDocumentEdges: Set[DocumentEdge[Document[Uml]]],
-   ignoreCrossReferencedElementFilter: Function1[UMLElement[Uml], Boolean],
+   ignoreCrossReferencedElementFilter: (UMLElement[Uml] => Boolean),
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
    aggregate: Uml#DocumentSetAggregate)
   (implicit
@@ -397,26 +397,11 @@ object DocumentSet {
       override def append(f1: F, f2: => F): F = f1 append f2
     }
 
-    val roots: ResultSetAggregator[UMLPackage[Uml]]#F =
-      ( ResultSetAggregator.zero[UMLPackage[Uml]] /: specificationRootPackages ) { (acc, pkg) =>
-        acc append
-        isPackageRootOfSpecificationDocument(pkg)
-        .map { ok =>
-          if (ok)
-            Set[UMLPackage[Uml]](pkg)
-          else
-            Set[UMLPackage[Uml]]()
-        }
-        .toThese
-      }
-
     val documents: ResultSetAggregator[SerializableDocument[Uml]]#F =
-      roots.flatMap { _roots =>
-        ( ResultSetAggregator.zero[SerializableDocument[Uml]] /: _roots ) { (acc, root) =>
-          acc append
-          createSerializableDocumentFromExistingRootPackage(root).map(Set(_))
-          .toThese
-        }
+      ( ResultSetAggregator.zero[SerializableDocument[Uml]] /: specificationRootPackages ) {
+        case (acc, (pkg, info)) =>
+        acc append
+        createSerializableDocumentFromExistingRootPackage(info, pkg).map(Set(_)).toThese
       }
 
     val result

@@ -40,7 +40,7 @@
 package org.omg.oti.uml.canonicalXMI
 
 import org.omg.oti.uml.UMLError
-import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
+import org.omg.oti.uml.characteristics.{OTISpecificationRootCharacteristics, OTICharacteristicsProvider}
 import org.omg.oti.uml.xmi._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations._
@@ -103,20 +103,12 @@ trait DocumentOps[Uml <: UML] {
    *
    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
    *
-   * @param uri the URI of the root package
-   * @param nsPrefix the namespace prefix of the root package
-   * @param uuidPrefix the prefix for generating xmi:uuids for the contents of the root package
-   * @param documentURL the `LoadURL` information about the external URL from where
-   *                    the serializable document contents will be read into the contents of
-   *                    the root package
-   * @param scope the root package scope of the tool-specific built-in document
+   * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
+   * @param scope the root package scope of the OTI serializable document
    * @return If successful, a SerializableDocument for the `root` package scope
    */
    def createSerializableDocumentFromImportedRootPackage
-   (uri: URI,
-    nsPrefix: String,
-    uuidPrefix: String,
-    documentURL: Uml#LoadURL,
+   (info: OTISpecificationRootCharacteristics,
     scope: UMLPackage[Uml])
    (implicit ds: DocumentSet[Uml])
    : NonEmptyList[java.lang.Throwable] \/ SerializableDocument[Uml]
@@ -128,32 +120,30 @@ trait DocumentOps[Uml <: UML] {
    *
    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
    *
+   * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
    * @param root a tool-specific root package corresponding to the tool-specific implementation
    *             of an OMG-defined document (e.g., the OMG UML2.5 PrimitiveTypes library)
    * @return A BuiltInDocument if the `root` package is recognized as the root package scope of
    *         a tool-specific built-in document corresponding to a known OMG published document.
    */
    def createBuiltInDocumentFromBuiltInRootPackage
-   (root: UMLPackage[Uml])
+   (info: OTISpecificationRootCharacteristics,
+    root: UMLPackage[Uml])
    : NonEmptyList[java.lang.Throwable] \/ BuiltInDocument[Uml]
 
   /**
-   * Create a SerializableDocument for an existing root package scope as long as the root package
-   * has the appropriate information for document exchange per OMG XMI 2.5.1:
-   * - a package URI
-   * - a document URL (where the SerializableDocument will be accessible after serialization)
-   * - a namespace prefix
-   * - a prefix for generating the xmi:UUIDs for the contents of the root package
-   * - a root package scope for the contents of the SerializableDocument
+   * Create a SerializableDocument for an existing root package
    *
    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Creation
    *
+   * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
    * @param root The root package scope of the serializable document
    * @return A SerializableDocument if the `root` package has the necessary information to specify
    *         how it should be eventually serialized per OMG XMI 2.5.1
    */
    def createSerializableDocumentFromExistingRootPackage
-   (root: UMLPackage[Uml])
+   (info: OTISpecificationRootCharacteristics,
+    root: UMLPackage[Uml])
    : NonEmptyList[java.lang.Throwable] \/ SerializableDocument[Uml]
 
   /**
