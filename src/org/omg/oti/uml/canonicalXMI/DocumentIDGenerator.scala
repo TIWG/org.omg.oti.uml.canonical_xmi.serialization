@@ -43,6 +43,7 @@ import java.lang.Integer
 import java.net.URL
 
 import org.omg.oti.uml.UMLError
+import org.omg.oti.uml.characteristics.OTISpecificationRootCharacteristics
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.xmi._
@@ -300,7 +301,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     case root: UMLPackage[Uml]
       if (resolvedDocumentSet.lookupDocumentByScope(root).isDefined
           // Adding condition for stopping the ID computation algorithm when a specification root is reached
-          || root.isSpecificationRoot.getOrElse(false)) =>
+          || root.hasSpecificationRootCharacteristics) =>
       root
       .name
       .fold[NonEmptyList[java.lang.Throwable] \/ String] {

@@ -13,14 +13,14 @@ object Versions {
     svnRevision
   }
   
-  // OTI Trees version
+  // OTI Canonical XMI version
 
   val version = version_prefix + "-" + version_suffix
   
   // OTI Core version
     
   val oti_core_prefix = version_prefix
-  val oti_core_suffix = "445088"
+  val oti_core_suffix = "445107"
   val oti_core_version = oti_core_prefix+"-"+oti_core_suffix
 
 }
