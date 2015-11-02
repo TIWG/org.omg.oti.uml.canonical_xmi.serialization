@@ -40,6 +40,7 @@
 package org.omg.oti.uml.canonicalXMI
 
 import org.omg.oti.uml.UMLError
+import org.omg.oti.uml.characteristics._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.xmi._
@@ -347,7 +348,9 @@ object DocumentSet {
         .fold[NonEmptyList[java.lang.Throwable] \/ Option[String]](
           Option.empty[String].right
         ){ is =>
-          is.xmiID.map(_.some)
+          is
+            .xmiID()(idg)
+            .map(_.some)
         }
       case v =>
         NonEmptyList(
@@ -360,7 +363,7 @@ object DocumentSet {
 
   def isPackageRootOfSpecificationDocument[Uml <: UML]
   (pkg: UMLPackage[Uml])
-  (implicit otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]])
+  (implicit otiCharacteristicsProvider: OTICharacteristicsProvider[Uml])
   : NonEmptyList[java.lang.Throwable] \/ Boolean =
   for {
     pkgURI <- pkg.getEffectiveURI
@@ -379,7 +382,7 @@ object DocumentSet {
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
    aggregate: Uml#DocumentSetAggregate)
   (implicit ops: UMLOps[Uml], documentOps: DocumentOps[Uml],
-   otiCharacterizations: Option[Map[UMLPackage[Uml], UMLComment[Uml]]],
+   otiCharacteristicsProvider: OTICharacteristicsProvider[Uml],
    nodeT: TypeTag[Document[Uml]],
    edgeT: TypeTag[DocumentEdge[Document[Uml]]])
   : NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {

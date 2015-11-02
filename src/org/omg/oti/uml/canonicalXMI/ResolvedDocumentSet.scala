@@ -301,7 +301,7 @@ case class ResolvedDocumentSet[Uml <: UML]
       \/-(null)
     val sN: NonEmptyList[java.lang.Throwable] \/ NamespaceBinding =
       (s0 /: referencedProfiles) { (si, rP) =>
-        (si |@| rP.getEffectiveURI) { (_si, _uri) =>
+        (si |@| rP.getEffectiveURI()(idg.otiCharacteristicsProvider)) { (_si, _uri) =>
           _uri.fold(_si) { ns_uri =>
             NamespaceBinding(rP.name.get, ns_uri, _si)
           }
@@ -675,7 +675,7 @@ case class ResolvedDocumentSet[Uml <: UML]
     def foldAttribute
     (next: NonEmptyList[java.lang.Throwable] \/ MetaData, f: e.MetaAttributeFunction)
     : NonEmptyList[java.lang.Throwable] \/ MetaData =
-      (next, f.evaluate(e, idg)) match {
+      (next, f.evaluate(e, idg, idg.otiCharacteristicsProvider)) match {
         case (-\/(t), _) =>
           t.left
         case (_, -\/(t)) =>
@@ -696,7 +696,7 @@ case class ResolvedDocumentSet[Uml <: UML]
     def foldAttributeNode
     (nodes: NonEmptyList[java.lang.Throwable] \/ NodeSeq, f: e.MetaAttributeFunction)
     : NonEmptyList[java.lang.Throwable] \/ NodeSeq =
-      (nodes, f.evaluate(e, idg)) match {
+      (nodes, f.evaluate(e, idg, idg.otiCharacteristicsProvider)) match {
         case (-\/(t), _) =>
           t.left
         case (_, -\/(t)) =>

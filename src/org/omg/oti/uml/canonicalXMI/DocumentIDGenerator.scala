@@ -43,7 +43,6 @@ import java.lang.Integer
 import java.net.URL
 
 import org.omg.oti.uml.UMLError
-import org.omg.oti.uml.characteristics.OTISpecificationRootCharacteristics
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.xmi._
@@ -448,7 +447,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                       if (cf.isOrdered)
                         slotValues
                       else
-                        slotValues.sortBy(_.xmiOrderingKey()(this).toOption.getOrElse("")) // @todo propagate errors
+                        slotValues
+                        .sortBy(
+                          _
+                            .xmiOrderingKey()(this)
+                            .toOption
+                            .getOrElse("")) // @todo propagate errors
                     require(orderedValues.contains(fv))
                     \/-(orderedValues.indexOf(fv).toString)
                   }
