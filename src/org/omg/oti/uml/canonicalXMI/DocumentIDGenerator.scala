@@ -605,7 +605,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           "getImageLocationURL error: An Image must have a non-null location URL"))
       .left
     }{ loc =>
-        catching(classOf[java.net.MalformedURLException], classOf[java.lang.SecurityException])
+        nonFatalCatch
         .withApply { cause: java.lang.Throwable =>
           NonEmptyList(
             documentIDGeneratorException(

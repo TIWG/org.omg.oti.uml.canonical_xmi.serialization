@@ -95,7 +95,7 @@ case class CatalogURIMapper(
               s"'$appendDocumentExtensionUnlessPresent'"))).left
 
     else
-      catching(classOf[java.io.IOException])
+      nonFatalCatch
       .withApply { cause: java.lang.Throwable =>
         NonEmptyList(
           catalogURIMapperException(s"failed to parse '$resolved' as a URL", cause)).left
@@ -166,12 +166,7 @@ case class CatalogURIMapper(
 
   def saveResolutionStrategy(resolved: String)
   : NonEmptyList[java.lang.Throwable] \/ Option[URI] =
-    catching(
-      classOf[java.io.IOException],
-      classOf[java.lang.SecurityException],
-      classOf[java.net.URISyntaxException],
-      classOf[java.net.MalformedURLException],
-      classOf[java.lang.NullPointerException])
+  nonFatalCatch
   .withApply {
     (cause: java.lang.Throwable) =>
       NonEmptyList(

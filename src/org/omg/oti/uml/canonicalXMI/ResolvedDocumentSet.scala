@@ -219,21 +219,31 @@ case class ResolvedDocumentSet[Uml <: UML]
   (d: SerializableDocument[Uml])
   (implicit idg: IDGenerator[Uml])
   : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] =
-    ds
+    \/.fromTryCatchNonFatal(new java.net.URI(d.info.packageURI))
+      .fold[NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)]](
+    l = (t: java.lang.Throwable) =>
+      -\/(
+        NonEmptyList[java.lang.Throwable](
+          resolvedDocumentSetException(
+            this,
+            s"serialize failed: Cannot serialize document ${d.info.packageURI}",
+            t))),
+    r = (duri: java.net.URI) =>
+      ds
       .documentURIMapper
-      .resolveURI(new java.net.URI(d.info.packageURI), ds.documentURIMapper.saveResolutionStrategy)
+      .resolveURI(duri, ds.documentURIMapper.saveResolutionStrategy)
       .flatMap { ruri =>
 
-        val uri = ruri.getOrElse(new java.net.URI(d.info.packageURI))
+        val uri = ruri.getOrElse(duri)
         val result: NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] =
-          \/.fromTryCatchThrowable[java.io.File, java.io.IOException](new java.io.File(uri)) match {
+          \/.fromTryCatchNonFatal(new java.io.File(uri)) match {
             case -\/(t) =>
               -\/(
                 NonEmptyList[java.lang.Throwable](
                   resolvedDocumentSetException(
                     this,
                     s"serialize failed: Cannot serialize document "
-                      + s"${d.info.packageURI} mapped for save to $ruri: ${t.getMessage}",
+                      + s"$duri mapped for save to $ruri: ${t.getMessage}",
                     t)))
             case \/-(furi) =>
               val s = d.scope.xmiID.flatMap { d_id =>
@@ -246,6 +256,7 @@ case class ResolvedDocumentSet[Uml <: UML]
 
         result
       }
+    )
 
   protected def serialize
   (d: SerializableDocument[Uml],
