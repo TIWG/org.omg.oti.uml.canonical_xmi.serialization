@@ -477,11 +477,10 @@ case class ResolvedDocumentSet[Uml <: UML]
               top :: mofTag :: stereotypeTagValues: _*)
 
             val filepath = furi.getPath + ".xmi"
-            val xmlFile = new java.io.File(filepath)
-            val xmlPrettyPrinter = new PrettyPrinter(width = 300, step = 2)
-            val xmlOutput = xmlPrettyPrinter.format(xmi)
-
-            \/.fromTryCatchThrowable[java.io.File, java.io.IOException]({
+            \/.fromTryCatchNonFatal[java.io.File]({
+              val xmlFile = new java.io.File(filepath)
+              val xmlPrettyPrinter = new PrettyPrinter(width = 300, step = 2)
+              val xmlOutput = xmlPrettyPrinter.format(xmi)
               val bw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(xmlFile), "UTF-8"))
               bw.println("<?xml version='1.0' encoding='UTF-8'?>")
               bw.println(xmlOutput)
@@ -493,7 +492,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                   resolvedDocumentSetException(
                     this,
                     s"serialize failed: Cannot save XMI serialization "
-                      + s"${d.info.packageURI} to file: $xmlFile: ${t.getMessage}",
+                      + s"${d.info.packageURI} to file: $filepath: ${t.getMessage}",
                     t)).left
               case \/-(file) =>
                 Set[(SerializableDocument[Uml], java.io.File)]((d, file)).right
