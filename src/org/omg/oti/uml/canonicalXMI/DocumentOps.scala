@@ -135,7 +135,8 @@ trait DocumentOps[Uml <: UML] {
    def createBuiltInDocumentFromBuiltInRootPackage
    (info: OTISpecificationRootCharacteristics,
     documentURL: Uml#LoadURL,
-    root: UMLPackage[Uml])
+    root: UMLPackage[Uml],
+    specificationRootPackages: Map[UMLPackage[Uml], OTISpecificationRootCharacteristics])
    : NonEmptyList[java.lang.Throwable] \/ BuiltInDocument[Uml]
 
   /**
