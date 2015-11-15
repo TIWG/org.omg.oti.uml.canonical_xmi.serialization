@@ -42,6 +42,7 @@ package org.omg.oti.uml.canonicalXMI
 import java.lang.Integer
 import java.net.URL
 
+import org.omg.oti.uml.OTIPrimitiveTypes._
 import org.omg.oti.uml.UMLError
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
@@ -86,15 +87,15 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     resolvedDocumentSet.element2mappedDocument(e).right
 
   override def getElement2IDMap
-  : Map[UMLElement[Uml], (NonEmptyList[java.lang.Throwable] \/ String)] = element2id.toMap
+  : Map[UMLElement[Uml], (NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID))] = element2id.toMap
 
   override def lookupElementXMI_ID
   (e: UMLElement[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Option[String] =
+  : NonEmptyList[java.lang.Throwable] \/ Option[String @@ OTI_ID] =
     element2id
     .get(e)
-    .fold[NonEmptyList[java.lang.Throwable] \/ Option[String]](
-      Option.empty[String].right
+    .fold[NonEmptyList[java.lang.Throwable] \/ Option[String @@ OTI_ID]](
+      Option.empty[String @@ OTI_ID].right
     ){ id =>
       id.map(_.some)
     }
@@ -160,7 +161,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                     Iterable(from, to),
                     s"getXMI_IDREF_or_HREF_fragment_internal: error: There should be a tool-specific xmi:id for the 'to' element in $db2")))
             }{ id =>
-              \/-(id)
+              \/-(OTI_ID.unwrap(id))
             }
 
             builtInURI <- documentOps.getExternalDocumentURL(db2.documentURL)
@@ -183,7 +184,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
         case _: SerializableDocument[Uml] =>
           getMappedOrReferencedElement(to)
-          .flatMap( _to => getXMI_ID(_to))
+          .flatMap( _to => getXMI_ID(_to).map(OTI_ID.unwrap))
 
         case d =>
           NonEmptyList(
@@ -202,11 +203,11 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    * unless it is overriden by an application of the OTI::Identity stereotype
    */
   def getXMI_ID(self: UMLElement[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ String =
+  : NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID) =
     element2id.getOrElseUpdate(
     self, {
       resolvedDocumentSet.element2mappedDocument( self )
-        .fold[NonEmptyList[java.lang.Throwable] \/ String] {
+        .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
           NonEmptyList(
             documentIDGeneratorException(
               this,
@@ -217,7 +218,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           case d: BuiltInDocument[Uml] =>
             self
             .toolSpecific_id
-            .fold[NonEmptyList[java.lang.Throwable] \/ String] {
+            .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
               NonEmptyList(
                 documentIDGeneratorException(
                   this,
@@ -232,10 +233,10 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
             self
             .oti_xmiID
             .flatMap(oid =>
-              oid.fold[(NonEmptyList[java.lang.Throwable] \/ String)]{
+              oid.fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)]{
                 computeID(self)
               }{ id =>
-                \/-(id)
+                id.right
               })
 
           case d =>
@@ -250,7 +251,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     })
 
   def computeID(self: UMLElement[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ String = {
+  : NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID) = {
     val r =
       elementRules
       .toStream
@@ -263,7 +264,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     else
       self
       .owner
-      .fold[NonEmptyList[java.lang.Throwable] \/ String] {
+      .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
         NonEmptyList(
           documentIDGeneratorException(
             this,
@@ -274,7 +275,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         self
         .getContainingMetaPropertyEvaluator()(this)
         .flatMap(ocf =>
-          ocf.fold[NonEmptyList[java.lang.Throwable] \/ String]{
+          ocf.fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)]{
             -\/(NonEmptyList[java.lang.Throwable](documentIDGeneratorException[Uml](
               this,
               Iterable(self),
@@ -303,7 +304,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           || root.hasSpecificationRootCharacteristics) =>
       root
       .name
-      .fold[NonEmptyList[java.lang.Throwable] \/ String] {
+      .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
         NonEmptyList(
           documentIDGeneratorException(
             this,
@@ -312,8 +313,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         .left
       }{
         n =>
-          IDGenerator
-          .xmlSafeID(n)
+          OTI_ID(IDGenerator.xmlSafeID(n))
           .right
       }
   }
@@ -325,7 +325,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     case (owner, ownerID, cf, iv: UMLInstanceValue[Uml]) =>
       iv
       .instance
-      .fold[NonEmptyList[java.lang.Throwable] \/ String] {
+      .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
         NonEmptyList(
           documentIDGeneratorException(
             this,
@@ -335,7 +335,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       }{ is =>
         is
         .name
-        .fold[NonEmptyList[java.lang.Throwable] \/ String] {
+        .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
           NonEmptyList(
             documentIDGeneratorException(
               this,
@@ -345,13 +345,13 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         }{ nInstance =>
           iv.getContainingMetaPropertyEvaluator()(this)
           .flatMap(ocf =>
-            ocf.fold[NonEmptyList[java.lang.Throwable] \/ String]{
+            ocf.fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)]{
             -\/(NonEmptyList[java.lang.Throwable](documentIDGeneratorException[Uml](
               this,
               Iterable(owner, iv, is),
               "crule1 error: Element without an owner is not supported(3)")))
           }{ cf =>
-            \/-(ownerID + "_" + IDGenerator.xmlSafeID(cf.propertyName + "." + nInstance))
+            \/-(OTI_ID(OTI_ID.unwrap(ownerID) + "_" + IDGenerator.xmlSafeID(cf.propertyName + "." + nInstance)))
           })
         }
       }
@@ -476,7 +476,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         }
 
       suffix3.map { s =>
-        ownerID + "_" + IDGenerator.xmlSafeID(cf.propertyName + s)
+        OTI_ID(ownerID + "_" + IDGenerator.xmlSafeID(cf.propertyName + s))
       }
   }
 
@@ -486,10 +486,11 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    */
   val crule1b: ContainedElement2IDRule = {
     case (owner, ownerID, cf, ne: UMLNamedElement[Uml]) if ne.name.isDefined =>
-      ( ownerID + "." +
+      OTI_ID(
+        OTI_ID.unwrap(ownerID) + "." +
         IDGenerator.xmlSafeID(ne.metaclass_name) + "_" +
         IDGenerator.xmlSafeID(cf.propertyName) + "_" +
-        IDGenerator.xmlSafeID(ne.name.getOrElse("")))
+        IDGenerator.xmlSafeID(ne.name.getOrElse("")) )
       .right
   }
 
@@ -502,7 +503,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       .flatMap{ vs =>
           val values = vs.toList
           require(values.contains(e))
-          \/-(ownerID + "_" + IDGenerator.xmlSafeID(cf.propertyName) + "." + values.indexOf(e))
+          \/-(OTI_ID(OTI_ID.unwrap(ownerID) + "_" + IDGenerator.xmlSafeID(cf.propertyName) + "." + values.indexOf(e)))
       }
   }
 
@@ -527,12 +528,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               val targetID =
                 resolvedDocumentSet.element2mappedDocument(relTarget) match {
                   case Some(d: BuiltInDocument[Uml]) =>
-                    IDGenerator.xmlSafeID(d.info.packageURI.toString() + "." + tid)
+                    OTI_ID(IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + tid))
                   case _ =>
                     tid
                 }
 
-              \/-(ownerID + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + targetID)
+              \/-(OTI_ID(OTI_ID.unwrap(ownerID) + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + targetID))
           }
         case _ =>
           NonEmptyList(
@@ -551,7 +552,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     case (owner, ownerID, cf, s: UMLSlot[Uml]) =>
       s
       .definingFeature
-      .fold[NonEmptyList[java.lang.Throwable] \/ String] {
+      .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
         NonEmptyList(
           documentIDGeneratorException(
             this,
@@ -561,7 +562,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       }{ sf =>
         sf
         .name
-        .fold[NonEmptyList[java.lang.Throwable] \/ String] {
+        .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
           NonEmptyList(
             documentIDGeneratorException(
               this,
@@ -569,7 +570,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               "crule4 error: Slot's defining StructuralFeature must be named"))
           .left
         }{ sfn =>
-          (ownerID + "." + IDGenerator.xmlSafeID(sfn))
+          OTI_ID(OTI_ID.unwrap(ownerID) + "." + IDGenerator.xmlSafeID(sfn))
           .right
         }
       }
@@ -580,7 +581,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    */
   val crule5: ContainedElement2IDRule = {
     case (owner, ownerID, cf, c: UMLComment[Uml]) =>
-      (ownerID + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + c.getCommentOwnerIndex)
+      OTI_ID(OTI_ID.unwrap(ownerID) + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + c.getCommentOwnerIndex)
       .right
   }
 
@@ -590,14 +591,14 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   val crule6: ContainedElement2IDRule = {
     case (owner, ownerID, cf, i: UMLImage[Uml]) =>
       getImageLocationURL(i) map { locationURL =>
-        ownerID + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + IDGenerator.xmlSafeID(locationURL)
+        OTI_ID(OTI_ID.unwrap(ownerID) + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + IDGenerator.xmlSafeID(OTI_URL.unwrap(locationURL)))
       }
   }
 
-  def getImageLocationURL(i: UMLImage[Uml]): NonEmptyList[java.lang.Throwable] \/ String =
+  def getImageLocationURL(i: UMLImage[Uml]): NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_URL) =
     i
     .location
-    .fold[NonEmptyList[java.lang.Throwable] \/ String] {
+    .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_URL)] {
       NonEmptyList(
         documentIDGeneratorException(
           this,
@@ -617,14 +618,13 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         }
         .apply({
           val url = new URL(loc) toString;
-          IDGenerator
-          .getValidNCName(url)
+          OTI_URL(IDGenerator.getValidNCName(url))
           .right
         })
     }
 
   def checkIDs(): Boolean = {
-    val id2Element = scala.collection.mutable.HashMap[String, UMLElement[Uml]]()
+    val id2Element = scala.collection.mutable.HashMap[String @@ OTI_ID, UMLElement[Uml]]()
     var res: Boolean = true
     var duplicates: Integer = 0
     var failed: Integer = 0
@@ -646,7 +646,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           false
         },
 
-        (id: String) => {
+        (id: String @@ OTI_ID) => {
             id2Element
             .get(id)
             .fold[Boolean]({
@@ -679,8 +679,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         .fold[String](
           (errors: NonEmptyList[java.lang.Throwable]) =>
           s"*** Fail: ${errors.size} erors",
-          (s: String) =>
-          s)
+          (s: String @@ OTI_ID) =>
+          OTI_ID.unwrap(s))
       x match {
         case ne: UMLNamedElement[Uml] =>
           val nameStr =

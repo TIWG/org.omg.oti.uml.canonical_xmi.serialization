@@ -145,12 +145,14 @@ trait DocumentOps[Uml <: UML] {
    *
    * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
    * @param root The root package scope of the serializable document
+   * @param specificationRootPackages The map of root packages to their characteristics
    * @return A SerializableDocument if the `root` package has the necessary information to specify
    *         how it should be eventually serialized per OMG XMI 2.5.1
    */
    def createSerializableDocumentFromExistingRootPackage
    (info: OTISpecificationRootCharacteristics,
-    root: UMLPackage[Uml])
+    root: UMLPackage[Uml],
+    specificationRootPackages: Map[UMLPackage[Uml], OTISpecificationRootCharacteristics])
    : NonEmptyList[java.lang.Throwable] \/ SerializableDocument[Uml]
 
   /**

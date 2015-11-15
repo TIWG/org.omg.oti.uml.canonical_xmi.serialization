@@ -42,6 +42,7 @@ package org.omg.oti.uml.canonicalXMI
 import java.io.{BufferedWriter,FileWriter,PrintWriter,Serializable}
 import java.lang.{IllegalArgumentException,System}
 
+import org.omg.oti.uml.OTIPrimitiveTypes._
 import org.omg.oti.uml.UMLError
 import org.omg.oti.uml.characteristics._
 import org.omg.oti.uml.read.api._
@@ -347,7 +348,7 @@ object DocumentSet {
         ){ is =>
           is
             .xmiID()(idg)
-            .map(_.some)
+            .map(OTI_ID.unwrap(_).some)
         }
       case v =>
         NonEmptyList(
@@ -401,7 +402,7 @@ object DocumentSet {
       ( ResultSetAggregator.zero[SerializableDocument[Uml]] /: specificationRootPackages ) {
         case (acc, (pkg, info)) =>
         acc append
-        createSerializableDocumentFromExistingRootPackage(info, pkg).map(Set(_)).toThese
+        createSerializableDocumentFromExistingRootPackage(info, pkg, specificationRootPackages).map(Set(_)).toThese
       }
 
     val result

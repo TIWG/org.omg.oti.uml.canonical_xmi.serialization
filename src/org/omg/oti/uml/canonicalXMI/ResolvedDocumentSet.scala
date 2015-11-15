@@ -43,6 +43,7 @@ import java.io.{FileOutputStream, OutputStreamWriter, PrintWriter}
 import java.lang.IllegalArgumentException
 
 import org.omg.oti.uml._
+import org.omg.oti.uml.OTIPrimitiveTypes._
 import org.omg.oti.uml.read.UMLStereotypeTagValue
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.xmi._
@@ -93,7 +94,7 @@ case class ResolvedDocumentSet[Uml <: UML]
   def getStereotype_ID_UUID
   (s: UMLStereotype[Uml])
   (implicit idg: IDGenerator[Uml]) 
-  : NonEmptyList[java.lang.Throwable] \/ (String, String) = {
+  : NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID) = {
     s
       .xmiID()
       .flatMap { _id =>
@@ -102,7 +103,7 @@ case class ResolvedDocumentSet[Uml <: UML]
           .flatMap { _uuid =>
 
             element2mappedDocument(s)
-              .fold[NonEmptyList[java.lang.Throwable] \/ (String, String)](
+              .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID)](
               -\/(
                 NonEmptyList(
                   resolvedDocumentSetException(
@@ -140,7 +141,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                         val fragmentIndex = mappedURI.lastIndexOf('#')
                         require(fragmentIndex > 0)
                         val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
-                        Tuple2(fragment, "omg.org." + d.info.nsPrefix.toLowerCase(java.util.Locale.ROOT) + fragment)
+                        Tuple2(OTI_ID(fragment), OTI_UUID(OTI_NS_PREFIX.unwrap(d.info.nsPrefix) + fragment))
                       }
                     })
                 }
@@ -219,14 +220,14 @@ case class ResolvedDocumentSet[Uml <: UML]
   (d: SerializableDocument[Uml])
   (implicit idg: IDGenerator[Uml])
   : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] =
-    \/.fromTryCatchNonFatal(new java.net.URI(d.info.packageURI))
+    \/.fromTryCatchNonFatal(new java.net.URI(OTI_URI.unwrap(d.info.packageURI)))
       .fold[NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)]](
     l = (t: java.lang.Throwable) =>
       -\/(
         NonEmptyList[java.lang.Throwable](
           resolvedDocumentSetException(
             this,
-            s"serialize failed: Cannot serialize document ${d.info.packageURI}",
+            s"serialize failed: Cannot serialize document ${OTI_URI.unwrap(d.info.packageURI)}",
             t))),
     r = (duri: java.net.URI) =>
       ds
@@ -260,8 +261,8 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   protected def serialize
   (d: SerializableDocument[Uml],
-   d_id: String,
-   d_uuid: String,
+   d_id: String @@ OTI_ID,
+   d_uuid: String @@ OTI_UUID,
    furi: java.io.File)
   (implicit idg: IDGenerator[Uml])
   : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] = {
@@ -297,8 +298,8 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   protected def serialize
   (d: SerializableDocument[Uml],
-   d_id: String,
-   d_uuid: String,
+   d_id: String @@ OTI_ID,
+   d_uuid: String @@ OTI_UUID,
    furi: java.io.File,
    element2stereotypeTagValues: Map[UMLElement[Uml], Seq[UMLStereotypeTagValue[Uml]]],
    referencedProfiles: List[UMLProfile[Uml]])
@@ -313,7 +314,7 @@ case class ResolvedDocumentSet[Uml <: UML]
       (s0 /: referencedProfiles) { (si, rP) =>
         (si |@| rP.getEffectiveURI()(idg.otiCharacteristicsProvider)) { (_si, _uri) =>
           _uri.fold(_si) { ns_uri =>
-            NamespaceBinding(rP.name.get, ns_uri, _si)
+            NamespaceBinding(rP.name.get, OTI_URI.unwrap(ns_uri), _si)
           }
         }
       }
@@ -330,8 +331,8 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   protected def serialize
   (d: SerializableDocument[Uml],
-   d_id: String,
-   d_uuid: String,
+   d_id: String @@ OTI_ID,
+   d_uuid: String @@ OTI_UUID,
    furi: java.io.File,
    element2stereotypeTagValues: Map[UMLElement[Uml], Seq[UMLStereotypeTagValue[Uml]]],
    referencedProfiles: List[UMLProfile[Uml]],
@@ -357,7 +358,7 @@ case class ResolvedDocumentSet[Uml <: UML]
     result
       .flatMap { top =>
         val mofTagRef: MetaData =
-          new PrefixedAttribute(pre = "xmi", key = "idref", value = d_id, Null)
+          new PrefixedAttribute(pre = "xmi", key = "idref", value = OTI_ID.unwrap(d_id), Null)
         val mofTagElement: Node =
           Elem(
             prefix = null, label = "element", attributes = mofTagRef,
@@ -418,8 +419,8 @@ case class ResolvedDocumentSet[Uml <: UML]
                   .toList
                   .sortBy(
                     getStereotype_ID_UUID(_)
-                    .getOrElse(Tuple2("", "")) // @todo propagate errors
-                    match { case (id, uuid) => id + uuid }
+                    .getOrElse(Tuple2(OTI_ID(""), OTI_UUID(""))) // @todo propagate errors
+                    match { case (id, uuid) => OTI_ID.unwrap(id) + OTI_UUID.unwrap(uuid) }
                   )
 
 
@@ -427,7 +428,7 @@ case class ResolvedDocumentSet[Uml <: UML]
               val oTVEN: NonEmptyList[java.lang.Throwable] \/ List[Node] = (oTVE0 /: ordering) { (oTVEi, s) =>
                 getStereotype_ID_UUID(s)
                   .flatMap {
-                    case (sID, _) =>
+                    case (sID, sUUID) =>
                       val tagValueAttributes: NonEmptyList[java.lang.Throwable] \/ List[Elem] =
                         allTagValuesByStereotype
                           .get(s)
@@ -437,12 +438,12 @@ case class ResolvedDocumentSet[Uml <: UML]
                           tagValueAttributeN
                         }
                       val stAppID = IDGenerator.computeStereotypeApplicationID(eID, sID)
-                      val stAppUUID = IDGenerator.computeStereotypeApplicationID(eUUID, sID)
+                      val stAppUUID = IDGenerator.computeStereotypeApplicationUUID(eUUID, sUUID)
                       val xmiTagValueAttributes =
                         new PrefixedAttribute(
-                          pre = "xmi", key = "id", value = stAppID,
+                          pre = "xmi", key = "id", value = OTI_ID.unwrap(stAppID),
                           new PrefixedAttribute(
-                            pre = "xmi", key = "uuid", value = stAppUUID,
+                            pre = "xmi", key = "uuid", value = OTI_UUID.unwrap(stAppUUID),
                             new PrefixedAttribute(
                               pre = "xmi", key = "type", value = s.profile.get.name.get + ":" + s.name.get,
                               Null)))
@@ -740,7 +741,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                   ){ dRef =>
                     if (d == dRef) {
                       val idrefAttrib: MetaData =
-                        new PrefixedAttribute(pre = "xmi", key = "idref", value = eRefID, Null)
+                        new PrefixedAttribute(pre = "xmi", key = "idref", value = OTI_ID.unwrap(eRefID), Null)
                       val idrefNode: Node =
                         Elem(
                           prefix = null, label = f.propertyName,
@@ -795,7 +796,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                             val dNodes: NonEmptyList[java.lang.Throwable] \/ NodeSeq =
                               if (d == dRef) {
                                 val idrefAttrib: MetaData =
-                                  new PrefixedAttribute(pre = "xmi", key = "idref", value = eRefID, Null)
+                                  new PrefixedAttribute(pre = "xmi", key = "idref", value = OTI_ID.unwrap(eRefID), Null)
                                 val idrefNode: Node =
                                   Elem(
                                     prefix = null, label = f.propertyName,
@@ -854,7 +855,7 @@ case class ResolvedDocumentSet[Uml <: UML]
         new PrefixedAttribute(
           pre = "xmi",
           key = "idref",
-          value = sub.xmiID().getOrElse(""), // @todo propagate errors
+          value = sub.xmiID().map(OTI_ID.unwrap).getOrElse(""), // @todo propagate errors
           Null)
 
       val idRefNode: Node = Elem(
@@ -897,7 +898,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                   Tuple3(
                     visitedElements + subElement,
                     sub_nested,
-                    sub_idrefs + (subElement.xmiID().getOrElse("") -> subNode)) // @todo propgate error
+                    sub_idrefs + (subElement.xmiID().map(OTI_ID.unwrap).getOrElse("") -> subNode)) // @todo propgate error
               }
             else
               callGenerateNodeElement(f, subElement).run match {
@@ -906,7 +907,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                 case \/-(subNode) =>
                   Tuple3(
                     visitedElements + subElement,
-                    sub_nested + (subElement.xmiUUID().getOrElse("") -> subNode), // @todo propgate error
+                    sub_nested + (subElement.xmiUUID().map(OTI_UUID.unwrap).getOrElse("") -> subNode), // @todo propgate error
                     sub_idrefs)
               }
         }
