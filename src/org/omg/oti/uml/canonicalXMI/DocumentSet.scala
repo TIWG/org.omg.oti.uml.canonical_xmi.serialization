@@ -270,25 +270,19 @@ trait DocumentSet[Uml <: UML] {
   }
 
   /**
-    * Adapt the scala-graph topological sort algorithm for sorting OTI documents
-    * according to inter-document cross reference edges.
+    * Topologically sort the graph of OTI documents w.r.t their cross-references.
     *
-    * @param g Graph
-    * @param visitor Function from a Graph' NodeT to a U
-    * @tparam U the type of the result of the visitor function
-    * @return topologically sorted list of graph' document nodes
+    * @param g Graph.
+    * @return Either:
+    *         - Left(document) if there is a cycle involving the document's scoped package
+    *         - Right(documents) if the documents can be topologically sorted w.r.t. their cross-references
+    *
+    * It is unclear how to use the topologicalSort in the graph library
+    * @see https://groups.google.com/forum/#!searchin/scala-graph/typetag/scala-graph/2x207RGtBSE/ipbLAUwcM0EJ
+    *
+    * This is simpler:
+    * @see https://groups.google.com/d/msg/scala-graph/o-XLlCEC66o/pIpXzOTmwAMJ
     */
-  def topoSort[U]
-  (g: MutableDocumentSetGraph)
-  ( implicit visitor: MutableDocumentSetGraph#NodeT => U = empty )
-  : List[Document[Uml]] =
-  g.topologicalSort(visitor)
-
-  /**
-   * Adapted from a scala-graph addition that is not yet in 1.9.1
-   *
-   * @see https://groups.google.com/forum/#!searchin/scala-graph/typetag/scala-graph/2x207RGtBSE/ipbLAUwcM0EJ
-   */
   def topologicalSort
   (g: MutableDocumentSetGraph)
   : Either[Document[Uml], List[Document[Uml]]] =
@@ -305,7 +299,7 @@ trait DocumentSet[Uml <: UML] {
   (node: MutableDocumentSetGraph#NodeT, memo: Memo)
   : Either[Document[Uml], Memo] = {
     if (memo.grey.contains(OuterNode(node.value)))
-      Left[Document[Uml], Memo]( node.value )
+      Left[Document[Uml], Memo]( node.value ) // Cycle involving node.value
     else if (memo.black.contains(OuterNode(node.value)))
       right(memo)
     else
