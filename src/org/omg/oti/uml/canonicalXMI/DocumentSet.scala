@@ -57,6 +57,7 @@ import scala.{Boolean,Either,Function1,Option,Left,None,Right,Product,Some,Strin
 import scala.Predef.{Map =>_, Set =>_,_}
 import scala.collection.immutable._
 import scala.collection.Iterable
+import scalax.collection.GraphTraversal.Visitor._
 
 import scalax.collection.config.CoreConfig
 import scalax.collection.mutable.ArraySet.Hints
@@ -267,6 +268,21 @@ trait DocumentSet[Uml <: UML] {
         unresolved)
     }
   }
+
+  /**
+    * Adapt the scala-graph topological sort algorithm for sorting OTI documents
+    * according to inter-document cross reference edges.
+    *
+    * @param g Graph
+    * @param visitor Function from a Graph' NodeT to a U
+    * @tparam U the type of the result of the visitor function
+    * @return topologically sorted list of graph' document nodes
+    */
+  def topoSort[U]
+  (g: MutableDocumentSetGraph)
+  ( implicit visitor: MutableDocumentSetGraph#NodeT => U = empty )
+  : List[Document[Uml]] =
+  g.topologicalSort(visitor)
 
   /**
    * Adapted from a scala-graph addition that is not yet in 1.9.1
