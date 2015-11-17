@@ -57,7 +57,6 @@ import scala.{Boolean,Either,Function1,Option,Left,None,Right,Product,Some,Strin
 import scala.Predef.{Map =>_, Set =>_,_}
 import scala.collection.immutable._
 import scala.collection.Iterable
-import scalax.collection.GraphTraversal.Visitor._
 
 import scalax.collection.config.CoreConfig
 import scalax.collection.mutable.ArraySet.Hints
