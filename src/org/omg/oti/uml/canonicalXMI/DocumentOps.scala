@@ -173,7 +173,7 @@ trait DocumentOps[Uml <: UML] {
   ( implicit
     nodeT: TypeTag[Document[Uml]],
     edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
-  : NonEmptyList[java.lang.Throwable] \/ DocumentSet[Uml]
+  : NonEmptyList[java.lang.Throwable] \&/ DocumentSet[Uml]
 
   /**
    * Create a DocumentSet graph for document nodes (serializable or built-in) and inter-document edges
