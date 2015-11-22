@@ -43,7 +43,7 @@ import java.io.{BufferedWriter,FileWriter,PrintWriter,Serializable}
 import java.lang.{IllegalArgumentException,System}
 
 import org.omg.oti.uml.OTIPrimitiveTypes._
-import org.omg.oti.uml.UMLError
+import org.omg.oti.uml._
 import org.omg.oti.uml.characteristics._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
@@ -71,59 +71,48 @@ import scalax.collection.io.json.descriptor.NodeDescriptor
 
 import scalaz._, Scalaz._
 
-/**
- * There seems to be a bug in scala-graph core 1.9.1
- * @see https://github.com/scala-graph/scala-graph/issues/29
- *
- *      As a workaround, the edge is defined as a kind of directed hyperedge (DiHyperEdge) but
- *      this is overkill, it should be just a directed edge (DiEdge)
- */
-class DocumentEdge[N](nodes: Product)
-  extends DiHyperEdge[N](nodes) // DiEdge
-          with EdgeCopy[DocumentEdge]
-          with OuterEdge[N, DocumentEdge] {
-
-  override def copy[NN](newNodes: Product) = DocumentEdge.newEdge[NN]( newNodes )
-}
-
-object DocumentEdge extends EdgeCompanion[DocumentEdge] {
-  protected def newEdge[N](nodes: Product) = new DocumentEdge[N](nodes)
-
-  /**
-   * @see https://github.com/scala-graph/scala-graph/issues/29
-   *      should be DiEdge[Project with ... ]
-   */
-  def apply[Uml <: UML](e: DiHyperEdge[Product with Serializable with Document[Uml]]) =
-    new DocumentEdge[Document[Uml]](NodeProduct(e.from, e.to))
-
-  def apply[Uml <: UML](from: Document[Uml], to: Document[Uml]) =
-    new DocumentEdge[Document[Uml]](NodeProduct(from, to))
-
-  def unapply[Uml <: UML](e: DocumentEdge[Document[Uml]]) =
-    Some(e)
-
-  def apply[N](from: N, to: N): DocumentEdge[N] =
-    new DocumentEdge[N](NodeProduct(from, to))
-
-  override def from[N](nodes: Product): DocumentEdge[N] =
-    new DocumentEdge[N](NodeProduct(nodes.productElement(1), nodes.productElement(2)))
-}
-
 case class UnresolvedElementCrossReference[Uml <: UML]
 (document: Document[Uml],
- documentElement: UMLElement[Uml],
- externalReference: UMLElement[Uml])
+ relationTriple: RelationTriple[Uml])
 
 class DocumentSetException
 (override val message: String,
  override val cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   extends UMLError.UException(message, cause)
 
+class DocumentEdge[N](nodes: Product, val relations: Seq[RelationTriple[_ <: UML]])
+  extends DiEdge[N](nodes)
+  with ExtendedKey[N]
+  with EdgeCopy[DocumentEdge]
+  with OuterEdge[N, DocumentEdge] {
+
+  def keyAttributes = Seq(relations)
+  override def copy[NN](newNodes: Product) = DocumentEdge.newEdge[NN]( newNodes, relations )
+  override protected def attributesToString = "(" + relations.size + " triples)"
+}
+
+object DocumentEdge {
+
+  protected def newEdge[N](nodes: Product, relations: Seq[RelationTriple[_ <: UML]]) =
+    new DocumentEdge[N](nodes, relations)
+
+  def apply[N](e: DiEdge[Product with Serializable with N], relations: Seq[RelationTriple[_ <: UML]]) =
+    new DocumentEdge[N](NodeProduct(e.from, e.to), relations)
+
+  def unapply(e: DocumentEdge[Document[_ <: UML]]) =
+    Some(e)
+
+  def apply[N](from: N, to: N, relations: Seq[RelationTriple[_ <: UML]]): DocumentEdge[N] =
+    new DocumentEdge[N](NodeProduct(from, to), relations)
+
+}
+
 /**
- * @todo add support for the possibility that a stereotype tag value may
- *       refer to an element serialized in a different document.
- */
+  * @todo add support for the possibility that a stereotype tag value may
+  *       refer to an element serialized in a different document.
+  */
 trait DocumentSet[Uml <: UML] {
+
   val serializableDocuments: Set[SerializableDocument[Uml]]
   val builtInDocuments: Set[BuiltInDocument[Uml]]
   val builtInDocumentEdges: Set[DocumentEdge[Document[Uml]]]
@@ -140,8 +129,6 @@ trait DocumentSet[Uml <: UML] {
 
   implicit val myConfig = CoreConfig(orderHint = 5000, Hints(64, 0, 64, 75))
 
-  //implicit val documentEdgeTag: TypeTag[DocumentEdge[Document[Uml]]] = typeTag[DocumentEdge[Document[Uml]]]
-
   class TConnected[CC[N, E[X] <: EdgeLikeIn[X]] <: Graph[N, E] with GraphLike[N, E, CC]]
   (val factory: GraphConstrainedCompanion[CC]) {
     implicit val config: Config = NoneConstraint
@@ -156,21 +143,21 @@ trait DocumentSet[Uml <: UML] {
   val iGraphFactory = new TConnected[immutable.Graph](immutable.Graph)
 
   /**
-   * Construct the graph of document (nodes) and cross-references among documents (edges) and
-   * determine unresolvable cross-references
-   *
-   * @param ignoreCrossReferencedElementFilter A predicate determing whether to ignore
-   *                                           an element or a cross reference to an element.
-   *
-   * @return a 3-tuple:
-   *         - the graph of document-level cross references
-   *         - the map of elements to theirs serialization document
-   *         - the unresolved cross references
-   */
+    * Construct the graph of document (nodes) and cross-references among documents (edges) and
+    * determine unresolvable cross-references
+    *
+    * @param ignoreCrossReferencedElementFilter A predicate determining which elements or element references to ignore
+    * @param unresolvedElementMapper A partial function mapping unresolved elements to resolvable elements
+    * @return A fail-lazy pair ([[scalaz.\&/]]):
+    *         - optionally, errors encountered during the resolution process
+    *         - optionally, a pair of:
+    *         1) a [[ResolvedDocumentSet]] constructed from the [[DocumentSet]]'s document nodes & edges
+    *         2) [[UnresolvedElementCrossReference]] information about unresolved element cross-references
+    */
   def resolve
   (ignoreCrossReferencedElementFilter: UMLElement[Uml] => Boolean,
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]])
-  : NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
+  : NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
 
     val allDocuments = serializableDocuments ++ builtInDocuments
 
@@ -178,26 +165,15 @@ trait DocumentSet[Uml <: UML] {
       val allE2D: Map[UMLElement[Uml], Document[Uml]] =
         allDocuments
           .flatMap { d =>
-            val dExtent: Set[UMLElement[Uml]] =
-              d.extent
-            val dExtentF: Set[UMLElement[Uml]] =
-              dExtent
-                .filter { (e) =>
-                  !ignoreCrossReferencedElementFilter(e)
-                }
-            val dMap: Map[UMLElement[Uml], Document[Uml]] =
-              dExtentF
-                .map { (e) =>
-                  (e -> d)
-                }
-            .toMap
+            val dExtent: Set[UMLElement[Uml]] = d.extent
+            val dExtentF: Set[UMLElement[Uml]] = dExtent.filter(!ignoreCrossReferencedElementFilter(_))
+            val dMap: Map[UMLElement[Uml], Document[Uml]] = dExtentF.map(_ -> d).toMap
             dMap
           }
-      .toMap
+        .toMap
 
       allE2D
     }
-
 
     def lookupDocumentForElement
     (e: UMLElement[Uml])
@@ -214,16 +190,6 @@ trait DocumentSet[Uml <: UML] {
           }
       }
 
-    def lookupDocumentForElementReference
-    (d: Document[Uml], e: UMLElement[Uml], eRef: UMLElement[Uml])
-    : Either[Document[Uml], UnresolvedElementCrossReference[Uml]]
-    = lookupDocumentForElement(eRef)
-      .fold[Either[Document[Uml], UnresolvedElementCrossReference[Uml]]] {
-        Right(UnresolvedElementCrossReference(d, e, eRef))
-      }{ dRef =>
-        Left(dRef)
-      }
-
     val g = mGraphFactory.empty()
 
     // add each document as a node in the graph
@@ -232,33 +198,59 @@ trait DocumentSet[Uml <: UML] {
     // add the edges among built-in documents.
     g ++= builtInDocumentEdges
 
-    val u0: NonEmptyList[java.lang.Throwable] \/ Set[UnresolvedElementCrossReference[Uml]] = Set().right
-    val uN: NonEmptyList[java.lang.Throwable] \/ Set[UnresolvedElementCrossReference[Uml]] =
+    type UnresolvedElementCrossReferences = Set[UnresolvedElementCrossReference[Uml]]
+    type Document2RelationTriples = Map[Document[Uml], Seq[RelationTriple[Uml]]]
+    type DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
+    (Map[(Document[Uml], Document[Uml]), Seq[RelationTriple[Uml]]], UnresolvedElementCrossReferences)
+
+    val u0: NonEmptyList[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
+      \&/.That(
+        ( Map[(Document[Uml], Document[Uml]), Seq[RelationTriple[Uml]]](),
+          Set[UnresolvedElementCrossReference[Uml]]()
+        ))
+    val empty_uxref = Set[UnresolvedElementCrossReference[Uml]]()
+    val empty_d2triples = Map[Document[Uml], Seq[RelationTriple[Uml]]]()
+
+    val uN: NonEmptyList[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
       (u0 /: element2document) { case (ui, (e, d)) =>
 
-      ui +++
-      e.allForwardReferencesToImportablePackageableElements
-      .map { eRefs =>
-        val s = for {
-          eRef <- eRefs
-          u <- lookupDocumentForElementReference(d, e, eRef) match {
-            case Right(unresolved) =>
-              Some(unresolved)
-            case Left(dRef) =>
-              d match {
-                case sd: SerializableDocument[Uml] =>
-                  g += DocumentEdge(sd, dRef)
-                case _ =>
-                  ()
-              }
-              None
-          }
-        } yield u
-        s
-      }
-    }
+        ui.flatMap { case (dPair2relationTriples1, unresolvedXRefs1) =>
 
-    uN.map { unresolved =>
+          e.forwardRelationTriples()
+            .toThese
+            .map { triples =>
+
+              val (unresolvedXRefs2: UnresolvedElementCrossReferences, triplesByDocument: Document2RelationTriples) =
+                ((empty_uxref, empty_d2triples) /: triples) {
+                  case ((us, d2ts), t) =>
+                    lookupDocumentForElement(t.obj)
+                      .fold[(UnresolvedElementCrossReferences, Document2RelationTriples)](
+                      (us + UnresolvedElementCrossReference(d, t), d2ts)
+                    ) { dRef =>
+                      (us, d2ts.updated(dRef, t +: d2ts.getOrElse(dRef, Seq[RelationTriple[Uml]]())))
+                    }
+                }
+
+              val dPair2relationTriples2 = (dPair2relationTriples1 /: triplesByDocument) {
+                case (dPair2triples, (dRef, refTriples)) =>
+                  val key = (d, dRef)
+                  dPair2triples.updated(
+                    key,
+                    value = dPair2triples.getOrElse(key, Seq[RelationTriple[Uml]]()) ++ refTriples
+                  )
+              }
+
+              (dPair2relationTriples2, unresolvedXRefs1 ++ unresolvedXRefs2)
+            }
+        }
+      }
+
+    uN.map { case (dPair2relationTriples, unresolved) =>
+      dPair2relationTriples.foreach { case ((dFrom, dTo), triples) =>
+        // For each inter-document edge: dFrom ~> dTo, record all the RelationTripes(subject, object)
+        // where subject is in dFrom and object is in dTo as the justification for the edge.
+        g += DocumentEdge(dFrom, dTo, triples)
+      }
       (ResolvedDocumentSet(
         this,
         g,
@@ -420,7 +412,7 @@ object DocumentSet {
     .flatMap { serializableDocuments =>
 
       val ds
-      : NonEmptyList[java.lang.Throwable] \/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
+      : NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
       createDocumentSet(
         serializableDocuments,
         builtInDocuments,
@@ -436,7 +428,7 @@ object DocumentSet {
 
         }
 
-      ds.toThese
+      ds
     }
 
     result

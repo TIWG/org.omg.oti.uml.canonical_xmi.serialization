@@ -201,7 +201,7 @@ trait DocumentOps[Uml <: UML] {
     ops: UMLOps[Uml],
     nodeT: TypeTag[Document[Uml]],
     edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
-  : NonEmptyList[java.lang.Throwable] \/ DocumentSet[Uml]
+  : NonEmptyList[java.lang.Throwable] \&/ DocumentSet[Uml]
    
   /**
    * Add a serializable document as a new node to an existing document set graph

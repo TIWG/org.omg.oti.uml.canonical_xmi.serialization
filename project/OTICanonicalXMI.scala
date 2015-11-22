@@ -9,6 +9,10 @@ import scala.xml.{Attribute, Elem, MetaData, Node, NodeSeq, Null, Text}
 
 object OTICanonicalXMI extends Build {
 
+  val POMRepositoryPathRegex = """\<repositoryPath\>\s*([^\"]*)\s*\<\/repositoryPath\>""".r
+  val NexusURL: String ="https://oss.sonatype.org/service/local"
+  val NexusRepo: String ="releases"
+
   // ======================
 
   def exportClasspathLibraries(nodes: Seq[Node]): Seq[Node] =
@@ -63,6 +67,7 @@ object OTICanonicalXMI extends Build {
       com.banno.license.Plugin.licenseSettings ++
       aether.AetherPlugin.autoImport.overridePublishSettings ++
       Seq(
+        sourcesInBase := false,
         sourceDirectories in Compile ~= { _.filter(_.exists) },
         sourceDirectories in Test ~= { _.filter(_.exists) },
         unmanagedSourceDirectories in Compile ~= { _.filter(_.exists) },
@@ -88,6 +93,28 @@ object OTICanonicalXMI extends Build {
     .settings(
       version := Versions.version,
       removeExistingHeaderBlock := true,
+      autoAPIMappings := true,
+      apiMappings ++= (for {
+        jar <- (dependencyClasspath in Compile in doc).value
+        url <- jar.metadata.get(AttributeKey[ModuleID]("moduleId")).flatMap { moduleID =>
+          val query = s"${NexusURL}/artifact/maven/resolve?r=${NexusRepo}&g=${moduleID.organization}&a=${moduleID.name}&v=${moduleID.revision}&c=javadoc"
+          scala.util.control.Exception.nonFatalCatch[Option[URL]]
+            .withApply { (t: java.lang.Throwable) => None }
+            .apply({
+              val conn = url(query).openConnection.asInstanceOf[java.net.HttpURLConnection]
+              conn.setRequestMethod("GET")
+              conn.setDoOutput(true)
+              POMRepositoryPathRegex
+                .findFirstMatchIn(scala.io.Source.fromInputStream(conn.getInputStream).getLines.mkString)
+                .map { m =>
+                  val javadocURL = url( raw"""${NexusURL}/repositories/${NexusRepo}/archive${m.group(1)}/!/index.html""")
+                  streams.value.log.info(s"Javadoc for $moduleID")
+                  streams.value.log.info(javadocURL.toString)
+                  javadocURL
+                }
+            })
+        }
+      } yield jar.data -> url).toMap,
       libraryDependencies ++= Seq(
         "org.scala-lang" % "scala-reflect"
         % Versions.scala % "provided" withSources() withJavadoc(),
