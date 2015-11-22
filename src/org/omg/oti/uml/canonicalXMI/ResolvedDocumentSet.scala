@@ -71,13 +71,13 @@ class ResolvedDocumentSetException[Uml <: UML]
 }
 
 /**
-  * Information about the result of resolving a [[DocumentSet]] as a graph of [[Document]] nodes
+  * Information about the result of resolving a [[DocumentSet]] as a graph of `Document` nodes
   * and inter-document edges.
   *
-  * @param ds Information about the set of [[Document]] in scope of the resolution process
-  * @param g The resolved directed graph of [[Document]] nodes & edges. This directed graph may have cycles!
-  * @param element2document Map from [[UMLElement]] to its containing [[Document]] node in the graph
-  * @param unresolvedElementMapper A partial function for mapping unresolved [[UMLElement]] to a resolvable [[UMLElement]]
+  * @param ds Information about the set of `Document` in scope of the resolution process
+  * @param g The resolved directed graph of `Document` nodes & edges. This directed graph may have cycles!
+  * @param element2document Map from `UMLElement` to its containing `Document` node in the graph
+  * @param unresolvedElementMapper A partial function for mapping unresolved `UMLElement` to a resolvable `UMLElement`
   * @tparam Uml The type signature for a tool-specific adaptation of the OTI UML API
   */
 case class ResolvedDocumentSet[Uml <: UML]
