@@ -233,11 +233,17 @@ trait DocumentSet[Uml <: UML] {
 
               val dPair2relationTriples2 = (dPair2relationTriples1 /: triplesByDocument) {
                 case (dPair2triples, (dRef, refTriples)) =>
-                  val key = (d, dRef)
-                  dPair2triples.updated(
-                    key,
-                    value = dPair2triples.getOrElse(key, Seq[RelationTriple[Uml]]()) ++ refTriples
-                  )
+                  if (d == dRef)
+                    // do not create a self-edge for intra-document reference triples
+                    dPair2triples
+                  else {
+                    // only add inter-document edges with the reference triples
+                    val key = (d, dRef)
+                    dPair2triples.updated(
+                      key,
+                      value = dPair2triples.getOrElse(key, Seq[RelationTriple[Uml]]()) ++ refTriples
+                    )
+                  }
               }
 
               (dPair2relationTriples2, unresolvedXRefs1 ++ unresolvedXRefs2)
