@@ -281,22 +281,77 @@ trait DocumentSet[Uml <: UML] {
     * @see https://groups.google.com/d/msg/scala-graph/o-XLlCEC66o/pIpXzOTmwAMJ
     */
   def topologicalSort
+  (g: ImmutableDocumentSetGraph)
+  : Either[Document[Uml], List[Document[Uml]]] =
+    searchAll(g.nodes, IMemo())
+      .right
+      .map(_.sorted.map(_.value))
+
+  case class IMemo
+  ( sorted: List[Document[Uml]] = Nil,
+    grey: ImmutableDocumentSetGraph = iGraphFactory.empty(),
+    black: ImmutableDocumentSetGraph = iGraphFactory.empty() )
+
+  def dfs
+  (node: ImmutableDocumentSetGraph#NodeT, memo: IMemo)
+  : Either[Document[Uml], IMemo] = {
+    if (memo.grey.contains(OuterNode(node.value)))
+      Left[Document[Uml], IMemo]( node.value ) // Cycle involving node.value
+    else if (memo.black.contains(OuterNode(node.value)))
+      right(memo)
+    else
+      searchAll(
+        node.outNeighbors.toIterable,
+        memo.copy(grey = memo.grey + node))
+        .right
+        .map { a =>
+          IMemo(node.value :: a.sorted, memo.grey, a.black + node)
+        }
+  }
+
+  def searchAll
+  (nodes: Iterable[ImmutableDocumentSetGraph#NodeT], memo: IMemo)
+  : Either[Document[Uml], IMemo] = {
+    ( right( memo ) /: nodes ) {
+      ( accu, node ) =>
+        accu.right.flatMap( m => dfs( node, m ) )
+    }
+  }
+
+  def right(m: IMemo): Either[Document[Uml], IMemo] =
+    Right(m)
+
+  /**
+    * Topologically sort the graph of OTI documents w.r.t their cross-references.
+    *
+    * @param g Graph.
+    * @return Either:
+    *         - Left(document) if there is a cycle involving the document's scoped package
+    *         - Right(documents) if the documents can be topologically sorted w.r.t. their cross-references
+    *
+    * It is unclear how to use the topologicalSort in the graph library
+    * @see https://groups.google.com/forum/#!searchin/scala-graph/typetag/scala-graph/2x207RGtBSE/ipbLAUwcM0EJ
+    *
+    * This is simpler:
+    * @see https://groups.google.com/d/msg/scala-graph/o-XLlCEC66o/pIpXzOTmwAMJ
+    */
+  def topologicalSort
   (g: MutableDocumentSetGraph)
   : Either[Document[Uml], List[Document[Uml]]] =
-    searchAll(g.nodes, Memo())
+    searchAll(g.nodes, MMemo())
     .right
     .map(_.sorted.map(_.value))
 
-  case class Memo
+  case class MMemo
   ( sorted: List[Document[Uml]] = Nil,
     grey: MutableDocumentSetGraph = mGraphFactory.empty(),
     black: MutableDocumentSetGraph = mGraphFactory.empty() )
 
   def dfs
-  (node: MutableDocumentSetGraph#NodeT, memo: Memo)
-  : Either[Document[Uml], Memo] = {
+  (node: MutableDocumentSetGraph#NodeT, memo: MMemo)
+  : Either[Document[Uml], MMemo] = {
     if (memo.grey.contains(OuterNode(node.value)))
-      Left[Document[Uml], Memo]( node.value ) // Cycle involving node.value
+      Left[Document[Uml], MMemo]( node.value ) // Cycle involving node.value
     else if (memo.black.contains(OuterNode(node.value)))
       right(memo)
     else
@@ -305,20 +360,20 @@ trait DocumentSet[Uml <: UML] {
         memo.copy(grey = memo.grey + node))
       .right
       .map { a =>
-        Memo(node.value :: a.sorted, memo.grey, a.black + node)
+        MMemo(node.value :: a.sorted, memo.grey, a.black + node)
       }
   }
 
   def searchAll
-  (nodes: Iterable[MutableDocumentSetGraph#NodeT], memo: Memo)
-  : Either[Document[Uml], Memo] = {
+  (nodes: Iterable[MutableDocumentSetGraph#NodeT], memo: MMemo)
+  : Either[Document[Uml], MMemo] = {
     ( right( memo ) /: nodes ) {
       ( accu, node ) =>
       accu.right.flatMap( m => dfs( node, m ) )
     }
   }
 
-  def right(m: Memo): Either[Document[Uml], Memo] =
+  def right(m: MMemo): Either[Document[Uml], MMemo] =
     Right(m)
 
 }
