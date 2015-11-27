@@ -2,9 +2,9 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: OMG Canonical XMI extension for the OMG Tool-neutral Interface (OTI) API for OMG UML 2.5-compatible modeling tools
 Bundle-SymbolicName: org.omg.oti.uml.canonicalXMI;singleton:=true
-Bundle-Version: 0.18.0.qualifier
+Bundle-Version: 0.19.0.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-1.7
 Export-Package: org.omg.oti.uml.canonicalXMI
 Bundle-ClassPath: .
-Require-Bundle: org.omg.oti;bundle-version="0.18.0";visibility:=reexport
+Require-Bundle: org.omg.oti;bundle-version="0.19.0";visibility:=reexport
 Bundle-ActivationPolicy: lazy
