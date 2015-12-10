@@ -83,7 +83,7 @@ class ResolvedDocumentSetException[Uml <: UML]
 case class ResolvedDocumentSet[Uml <: UML]
 (ds: DocumentSet[Uml],
  g: DocumentSet[Uml]#MutableDocumentSetGraph,
- protected val element2document: Map[UMLElement[Uml], Document[Uml]],
+ val element2document: Map[UMLElement[Uml], Document[Uml]],
  unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]]) {
 
   implicit val dOps = ds.documentOps
@@ -173,10 +173,6 @@ case class ResolvedDocumentSet[Uml <: UML]
           }
       }
   }
-
-  def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] =
-    element2mappedDocument(e)
-      .filter(d => d.scope == e)
 
   def serialize
   ()

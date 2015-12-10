@@ -40,6 +40,7 @@
 package org.omg.oti.uml
 
 import org.omg.oti.uml.read.api.{UMLElement, UML}
+import org.omg.oti.uml.xmi.IDGenerator
 
 import scala.collection.immutable.Iterable
 import scala.{Option,None}
@@ -82,20 +83,20 @@ package object canonicalXMI {
     new ResolvedDocumentSetException(rds, message, cause.wrapNel.some)
 
   def documentIDGeneratorException[Uml <: UML]
-  (idGenerator: DocumentIDGenerator[Uml],
+  (idGenerator: IDGenerator[Uml],
    elements: Iterable[UMLElement[Uml]],
    message: String,
    cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   : java.lang.Throwable =
-    new DocumentIDGeneratorException(idGenerator, elements, message, cause)
+    new UMLError.IDGeneratorException(idGenerator, elements, message, cause)
 
   def documentIDGeneratorException[Uml <: UML]
-  (idGenerator: DocumentIDGenerator[Uml],
+  (idGenerator: IDGenerator[Uml],
    elements: Iterable[UMLElement[Uml]],
    message: String,
    cause: java.lang.Throwable)
   : java.lang.Throwable =
-    new DocumentIDGeneratorException(idGenerator, elements, message, cause.wrapNel.some)
+    new UMLError.IDGeneratorException(idGenerator, elements, message, cause.wrapNel.some)
 
   def documentOpsException[Uml <: UML]
   ( dOps: DocumentOps[Uml],

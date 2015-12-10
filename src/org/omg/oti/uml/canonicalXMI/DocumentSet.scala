@@ -127,6 +127,14 @@ trait DocumentSet[Uml <: UML] {
   implicit val nodeT: TypeTag[Document[Uml]]
   implicit val edgeT: TypeTag[DocumentEdge[Document[Uml]]]
 
+  def lookupDocumentByExtent(e: UMLElement[Uml]): Option[Document[Uml]] =
+    serializableDocuments.find(d => d.extent.contains(e))
+    .orElse(builtInDocuments.find(d => d.extent.contains(e)))
+    
+  def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] =
+    serializableDocuments.find(d => d.scope == e)
+    .orElse(builtInDocuments.find(d => d.scope == e))
+      
   implicit val myConfig = CoreConfig(orderHint = 5000, Hints(64, 0, 64, 75))
 
   class TConnected[CC[N, E[X] <: EdgeLikeIn[X]] <: Graph[N, E] with GraphLike[N, E, CC]]

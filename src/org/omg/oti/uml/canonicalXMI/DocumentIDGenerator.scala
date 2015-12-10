@@ -56,14 +56,6 @@ import scala.language.postfixOps
 import scala.util.control.Exception._
 import scalaz._, Scalaz._
 
-
-class DocumentIDGeneratorException[Uml <: UML]
-(idGenerator: DocumentIDGenerator[Uml],
- override val element: Iterable[UMLElement[Uml]],
- override val message: String,
- override val cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
-  extends UMLError.UElementException[Uml, UMLElement[Uml]](element, message, cause)
-
 /**
  * @tparam Uml
  */
@@ -73,7 +65,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   implicit val documentOps: DocumentOps[Uml]
 
-  implicit val resolvedDocumentSet: ResolvedDocumentSet[Uml]
+  implicit val documentSet: DocumentSet[Uml]
 
   protected val element2id: Element2IDHashMap
 
@@ -81,10 +73,26 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   protected val containmentRules: List[ContainedElement2IDRule]
 
+  protected val element2documentTable: Map[UMLElement[Uml], Document[Uml]]
+  
+  protected val element2documentCache = new scala.collection.mutable.HashMap[UMLElement[Uml], Document[Uml]]()
+  
+  def element2document
+  (e: UMLElement[Uml])
+  : Option[Document[Uml]] = 
+    element2documentTable.get(e)
+    .orElse(element2documentCache.get(e))
+    .orElse {
+      documentSet.lookupDocumentByExtent(e).map { d =>
+        element2documentCache += (e -> d)
+        d
+      }
+    }
+
   override def element2mappedDocument
   (e: UMLElement[Uml])
   : NonEmptyList[java.lang.Throwable] \/ Option[Document[Uml]] =
-    resolvedDocumentSet.element2mappedDocument(e).right
+    element2document(e).right
 
   override def getElement2IDMap
   : Map[UMLElement[Uml], (NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID))] = element2id.toMap
@@ -109,7 +117,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     val extent = pkg
       .allOwnedElements
       .+(pkg)
-      .filter(resolvedDocumentSet.isElementMapped2Document)
+      .filter(element2document(_).isDefined)
 
     val e0: NonEmptyList[java.lang.Throwable] \/ Unit = ().right
     val eN: NonEmptyList[java.lang.Throwable] \/ Unit = (e0 /: extent) {
@@ -135,14 +143,14 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   (from: UMLElement[Uml],
    to: UMLElement[Uml])
   : NonEmptyList[java.lang.Throwable] \/ String =
-    resolvedDocumentSet.element2mappedDocument(from)
+    element2document(from)
     .fold[NonEmptyList[java.lang.Throwable] \/ String] {
       NonEmptyList(
         UMLError
         .illegalElementError[Uml, UMLElement[Uml]]("Unknown document for element reference from", Iterable(from)))
       .left
     }{ d1 =>
-      resolvedDocumentSet.element2mappedDocument(to)
+      element2document(to)
       .fold[NonEmptyList[java.lang.Throwable] \/ String] {
         NonEmptyList(
           UMLError
@@ -172,7 +180,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               .toString
 
             // use the builtInURIMapper to convert the built-in URI of the 'to' element into an OMG URI
-            mappedURITo <- resolvedDocumentSet.ds.builtInURIMapper.resolve(builtInURITo).map(_.getOrElse(builtInURITo))
+            mappedURITo <- documentSet.builtInURIMapper.resolve(builtInURITo).map(_.getOrElse(builtInURITo))
             fragmentIndex = mappedURITo.lastIndexOf('#')
             _ = require(fragmentIndex > 0)
 
@@ -206,7 +214,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   : NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID) =
     element2id.getOrElseUpdate(
     self, {
-      resolvedDocumentSet.element2mappedDocument( self )
+      element2document( self )
         .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
           NonEmptyList(
             documentIDGeneratorException(
@@ -299,7 +307,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   val rule0: Element2IDRule = {
     case root: UMLPackage[Uml]
-      if (resolvedDocumentSet.lookupDocumentByScope(root).isDefined
+      if (documentSet.lookupDocumentByScope(root).isDefined
           // Adding condition for stopping the ID computation algorithm when a specification root is reached
           || root.hasSpecificationRootCharacteristics) =>
       root
@@ -526,7 +534,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           getXMI_IDREF_or_HREF_fragment(owner, relTarget)
           .flatMap { tid =>
               val targetID =
-                resolvedDocumentSet.element2mappedDocument(relTarget) match {
+                element2document(relTarget) match {
                   case Some(d: BuiltInDocument[Uml]) =>
                     OTI_ID(IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + tid))
                   case _ =>
