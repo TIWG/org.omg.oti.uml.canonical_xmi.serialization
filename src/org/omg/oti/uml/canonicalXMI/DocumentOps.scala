@@ -136,7 +136,9 @@ trait DocumentOps[Uml <: UML] {
    (info: OTISpecificationRootCharacteristics,
     documentURL: Uml#LoadURL,
     root: UMLPackage[Uml],
+    builtInExtent: Set[UMLElement[Uml]],
     specificationRootPackages: Map[UMLPackage[Uml], OTISpecificationRootCharacteristics])
+       (implicit ds: DocumentSet[Uml])
    : NonEmptyList[java.lang.Throwable] \/ BuiltInDocument[Uml]
 
   /**
