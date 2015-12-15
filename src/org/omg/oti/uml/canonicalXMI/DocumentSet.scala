@@ -115,6 +115,7 @@ trait DocumentSet[Uml <: UML] {
 
   val serializableImmutableDocuments: Set[SerializableImmutableDocument[Uml]]
   val serializableMutableDocuments: Set[SerializableMutableDocument[Uml]]
+  val loadingMutableDocuments: Set[LoadingMutableDocument[Uml]]
   val builtInImmutableDocuments: Set[BuiltInImmutableDocument[Uml]]
   val builtInMutableDocuments: Set[BuiltInMutableDocument[Uml]]
   
@@ -122,7 +123,7 @@ trait DocumentSet[Uml <: UML] {
     serializableImmutableDocuments ++ builtInImmutableDocuments
     
   val allMutableDocuments: Set[MutableDocument[Uml]] =
-    serializableMutableDocuments ++ builtInMutableDocuments
+    loadingMutableDocuments ++ serializableMutableDocuments ++ builtInMutableDocuments
     
   val allSerializableDocuments: Set[Document[Uml]] = 
     serializableImmutableDocuments ++ serializableMutableDocuments
@@ -130,7 +131,8 @@ trait DocumentSet[Uml <: UML] {
   val allBuiltInDocuments: Set[Document[Uml]] =
     builtInImmutableDocuments ++ builtInMutableDocuments
     
-  val allDocuments: Set[Document[Uml]] = allSerializableDocuments ++ allBuiltInDocuments
+  val allDocuments: Set[Document[Uml]] = 
+    loadingMutableDocuments ++ allSerializableDocuments ++ allBuiltInDocuments
   
   val documentURIMapper: CatalogURIMapper
   val builtInURIMapper: CatalogURIMapper
@@ -159,9 +161,19 @@ trait DocumentSet[Uml <: UML] {
     (m1 ++ m2).toMap
   }
   
+  def asBuiltInMutableDocument
+  (d: LoadingMutableDocument[Uml],
+   artifactKind: OTIArtifactKind)
+  : NonEmptyList[java.lang.Throwable] \/ (BuiltInMutableDocument[Uml], DocumentSet[Uml])
+  
   def freezeBuiltInMutableDocument
   (d: BuiltInMutableDocument[Uml])
   : NonEmptyList[java.lang.Throwable] \/ (BuiltInImmutableDocument[Uml], DocumentSet[Uml])
+  
+  def asSerializableMutableDocument
+  (d: LoadingMutableDocument[Uml],
+   artifactKind: OTIArtifactKind)
+  : NonEmptyList[java.lang.Throwable] \/ (SerializableMutableDocument[Uml], DocumentSet[Uml])
   
   def freezeSerializableMutableDocument
   (d: SerializableMutableDocument[Uml])

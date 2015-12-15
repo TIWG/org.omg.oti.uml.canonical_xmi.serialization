@@ -159,6 +159,25 @@ trait DocumentOps[Uml <: UML] {
   : NonEmptyList[java.lang.Throwable] \/ ( BuiltInMutableDocument[Uml], DocumentSet[Uml] )
 
   /**
+   * Create a LoadingMutableDocument for a root package scope whose contents are subject to change
+   *
+   * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
+   *
+   * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
+   * @param documentURL the `LoadURL` information about the external URL from where
+   *                    the serializable document contents will be read into the contents of
+   *                    the root package
+   * @param root the root package scope of the OTI serializable document
+   * @return If successful, a SerializableDocument for the `root` package scope
+   */
+  def addLoadingMutableDocument
+  ( ds: DocumentSet[Uml],
+    info: OTISpecificationRootCharacteristics,
+    documentURL: Uml#LoadURL,
+    root: UMLPackage[Uml] )
+  : NonEmptyList[java.lang.Throwable] \/ ( LoadingMutableDocument[Uml], DocumentSet[Uml] )
+  
+  /**
    * Create a SerializableImmutableDocument for an existing root package whose contents are fully known
    *
    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Creation
