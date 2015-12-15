@@ -113,9 +113,25 @@ object DocumentEdge {
   */
 trait DocumentSet[Uml <: UML] {
 
-  val serializableDocuments: Set[SerializableDocument[Uml]]
-  val builtInDocuments: Set[BuiltInDocument[Uml]]
-  val builtInDocumentEdges: Set[DocumentEdge[Document[Uml]]]
+  val serializableImmutableDocuments: Set[SerializableImmutableDocument[Uml]]
+  val serializableMutableDocuments: Set[SerializableMutableDocument[Uml]]
+  val builtInImmutableDocuments: Set[BuiltInImmutableDocument[Uml]]
+  val builtInMutableDocuments: Set[BuiltInMutableDocument[Uml]]
+  
+  val allImmutableDocuments: Set[ImmutableDocument[Uml]] =
+    serializableImmutableDocuments ++ builtInImmutableDocuments
+    
+  val allMutableDocuments: Set[MutableDocument[Uml]] =
+    serializableMutableDocuments ++ builtInMutableDocuments
+    
+  val allSerializableDocuments: Set[Document[Uml]] = 
+    serializableImmutableDocuments ++ serializableMutableDocuments
+    
+  val allBuiltInDocuments: Set[Document[Uml]] =
+    builtInImmutableDocuments ++ builtInMutableDocuments
+    
+  val allDocuments: Set[Document[Uml]] = allSerializableDocuments ++ allBuiltInDocuments
+  
   val documentURIMapper: CatalogURIMapper
   val builtInURIMapper: CatalogURIMapper
 
@@ -127,14 +143,70 @@ trait DocumentSet[Uml <: UML] {
   implicit val nodeT: TypeTag[Document[Uml]]
   implicit val edgeT: TypeTag[DocumentEdge[Document[Uml]]]
 
+  val element2ImmutableDocument: Map[UMLElement[Uml], ImmutableDocument[Uml]] = {
+    val m1 =
+      for { 
+        d <- serializableImmutableDocuments
+        e <- d.extent
+      } yield (e -> d)
+      
+    val m2 =
+      for { 
+        d <- builtInImmutableDocuments
+        e <- d.extent
+      } yield (e -> d)
+      
+    (m1 ++ m2).toMap
+  }
+  
+  def freezeBuiltInMutableDocument
+  (d: BuiltInMutableDocument[Uml])
+  : NonEmptyList[java.lang.Throwable] \/ (BuiltInImmutableDocument[Uml], DocumentSet[Uml])
+  
+  def freezeSerializableMutableDocument
+  (d: SerializableMutableDocument[Uml])
+  : NonEmptyList[java.lang.Throwable] \/ (SerializableImmutableDocument[Uml], DocumentSet[Uml])
+  
   def lookupDocumentByExtent(e: UMLElement[Uml]): Option[Document[Uml]] =
-    serializableDocuments.find(d => d.extent.contains(e))
-    .orElse(builtInDocuments.find(d => d.extent.contains(e)))
+    element2ImmutableDocument.get(e)
+    .orElse(allMutableDocuments.find(d => d.includes(e)))
     
   def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] =
-    serializableDocuments.find(d => d.scope == e)
-    .orElse(builtInDocuments.find(d => d.scope == e))
+    allDocuments.find(d => d.scope == e)
       
+  def computeElement2DocumentMap: Map[UMLElement[Uml], Document[Uml]] = 
+     allDocuments.flatMap { d => d.extent.map(_ -> d).toMap }.toMap
+     
+  /**
+    * All owned elements of a package excluding the extent of any nested Document scope package
+    * @param p a UML Package
+    * @return a set, s, such that if e in s, then e is nested in p and e is not in the scope of any Document
+    */
+  def allOwnedElementsExcludingAllDocumentScopes
+  (p: UMLPackage[Uml])
+  : NonEmptyList[java.lang.Throwable] \/ Set[UMLElement[Uml]] = 
+    lookupDocumentByExtent(p)
+    .fold[NonEmptyList[java.lang.Throwable] \/ Set[UMLElement[Uml]]]{
+      
+    val nestedExtent = p.allOwnedElements - p
+    val nestedDocumentScopes: Set[UMLPackage[Uml]] = nestedExtent.flatMap {
+      case nestedP: UMLPackage[Uml] if lookupDocumentByScope(nestedP).isDefined =>
+        Some(nestedP)
+      case _ =>
+        None
+    }
+    val restrictedExtent = ( nestedExtent /: nestedDocumentScopes ) { (acc, sub) =>
+      acc - sub -- sub.allOwnedElements
+    }
+    \/-(Set[UMLElement[Uml]](p) ++ restrictedExtent)
+  }{ d =>
+    -\/(
+      NonEmptyList(
+          UMLError.umlAdaptationError(
+              s"allOwnedElementsExcludingAllDocumentScopes: p=${p.qualifiedName.get} "+
+              s"is already within the scope of a document: ${d.info}")))
+  }
+  
   implicit val myConfig = CoreConfig(orderHint = 5000, Hints(64, 0, 64, 75))
 
   class TConnected[CC[N, E[X] <: EdgeLikeIn[X]] <: Graph[N, E] with GraphLike[N, E, CC]]
@@ -154,7 +226,8 @@ trait DocumentSet[Uml <: UML] {
     * Construct the graph of document (nodes) and cross-references among documents (edges) and
     * determine unresolvable cross-references
     *
-    * @param ignoreCrossReferencedElementFilter A predicate determining which elements or element references to ignore
+    * @param ignoreCrossReferencedElementFilter A predicate determining which elements or 
+    *                                           element references to ignore
     * @param unresolvedElementMapper A partial function mapping unresolved elements to resolvable elements
     * @return A fail-lazy pair ([[scalaz.\&/]]):
     *         - optionally, errors encountered during the resolution process
@@ -164,29 +237,18 @@ trait DocumentSet[Uml <: UML] {
     */
   def resolve
   (ignoreCrossReferencedElementFilter: UMLElement[Uml] => Boolean,
-   unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]])
-  : NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
+   unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
+   includeAllForwardRelationTriple: (Document[Uml], RelationTriple[Uml], Document[Uml]) => Boolean =
+     DocumentSet.includeAllForwardRelationTriple[Uml])
+  : NonEmptyList[java.lang.Throwable] \&/ 
+    (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
 
-    val allDocuments = serializableDocuments ++ builtInDocuments
-
-    val element2document: Map[UMLElement[Uml], Document[Uml]] = {
-      val allE2D: Map[UMLElement[Uml], Document[Uml]] =
-        allDocuments
-          .flatMap { d =>
-            val dExtent: Set[UMLElement[Uml]] = d.extent
-            val dExtentF: Set[UMLElement[Uml]] = dExtent.filter(!ignoreCrossReferencedElementFilter(_))
-            val dMap: Map[UMLElement[Uml], Document[Uml]] = dExtentF.map(_ -> d).toMap
-            dMap
-          }
-        .toMap
-
-      allE2D
-    }
+    val e2d: Map[UMLElement[Uml], Document[Uml]] = computeElement2DocumentMap
 
     def lookupDocumentForElement
     (e: UMLElement[Uml])
     : Option[Document[Uml]]
-    = element2document
+    = e2d
       .get(e)
       .orElse {
         if (ignoreCrossReferencedElementFilter(e))
@@ -194,24 +256,22 @@ trait DocumentSet[Uml <: UML] {
         else
           unresolvedElementMapper(e)
           .flatMap { eMapped =>
-            element2document.get(eMapped)
+            e2d.get(eMapped)
           }
       }
 
     val g = mGraphFactory.empty()
 
     // add each document as a node in the graph
-    element2document.values foreach { d => g += d }
-
-    // add the edges among built-in documents.
-    g ++= builtInDocumentEdges
+    e2d.values foreach { d => g += d }
 
     type UnresolvedElementCrossReferences = Set[UnresolvedElementCrossReference[Uml]]
     type Document2RelationTriples = Map[Document[Uml], Seq[RelationTriple[Uml]]]
     type DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
     (Map[(Document[Uml], Document[Uml]), Seq[RelationTriple[Uml]]], UnresolvedElementCrossReferences)
 
-    val u0: NonEmptyList[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
+    val u0: NonEmptyList[java.lang.Throwable] \&/
+            DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
       \&/.That(
         ( Map[(Document[Uml], Document[Uml]), Seq[RelationTriple[Uml]]](),
           Set[UnresolvedElementCrossReference[Uml]]()
@@ -219,8 +279,9 @@ trait DocumentSet[Uml <: UML] {
     val empty_uxref = Set[UnresolvedElementCrossReference[Uml]]()
     val empty_d2triples = Map[Document[Uml], Seq[RelationTriple[Uml]]]()
 
-    val uN: NonEmptyList[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
-      (u0 /: element2document) { case (ui, (e, d)) =>
+    val uN: NonEmptyList[java.lang.Throwable] \&/ 
+            DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
+      (u0 /: e2d) { case (ui, (e, d)) =>
 
         ui.flatMap { case (dPair2relationTriples1, unresolvedXRefs1) =>
 
@@ -228,14 +289,18 @@ trait DocumentSet[Uml <: UML] {
             .toThese
             .map { triples =>
 
-              val (unresolvedXRefs2: UnresolvedElementCrossReferences, triplesByDocument: Document2RelationTriples) =
+              val (unresolvedXRefs2: UnresolvedElementCrossReferences, 
+                   triplesByDocument: Document2RelationTriples) =
                 ((empty_uxref, empty_d2triples) /: triples) {
                   case ((us, d2ts), t) =>
                     lookupDocumentForElement(t.obj)
                       .fold[(UnresolvedElementCrossReferences, Document2RelationTriples)](
                       (us + UnresolvedElementCrossReference(d, t), d2ts)
                     ) { dRef =>
-                      (us, d2ts.updated(dRef, t +: d2ts.getOrElse(dRef, Seq[RelationTriple[Uml]]())))
+                      if (includeAllForwardRelationTriple(d, t, dRef))
+                        (us, d2ts.updated(dRef, t +: d2ts.getOrElse(dRef, Seq[RelationTriple[Uml]]())))
+                      else
+                        (us, d2ts)    
                     }
                 }
 
@@ -268,7 +333,7 @@ trait DocumentSet[Uml <: UML] {
       (ResolvedDocumentSet(
         this,
         g,
-        element2document,
+        e2d,
         unresolvedElementMapper),
         unresolved)
     }
@@ -388,6 +453,10 @@ trait DocumentSet[Uml <: UML] {
 
 object DocumentSet {
 
+  def includeAllForwardRelationTriple[Uml <: UML]
+  (dFrom: Document[Uml], triple: RelationTriple[Uml], dTo: Document[Uml])
+  : Boolean = true
+  
   val XMI_Version = "20131001"
 
   val XMI_ns = "http://www.omg.org/spec/XMI/20131001"
@@ -440,66 +509,4 @@ object DocumentSet {
     pkgURI.isDefined &&
     docURL.isDefined
 
-  def constructDocumentSetCrossReferenceGraph[Uml <: UML]
-  (specificationRootPackages: Map[UMLPackage[Uml], OTISpecificationRootCharacteristics],
-   documentURIMapper: CatalogURIMapper,
-   builtInURIMapper: CatalogURIMapper,
-   builtInDocuments: Set[BuiltInDocument[Uml]],
-   builtInDocumentEdges: Set[DocumentEdge[Document[Uml]]],
-   ignoreCrossReferencedElementFilter: (UMLElement[Uml] => Boolean),
-   unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
-   aggregate: Uml#DocumentSetAggregate)
-  (implicit
-   ops: UMLOps[Uml],
-   documentOps: DocumentOps[Uml],
-   nodeT: TypeTag[Document[Uml]],
-   edgeT: TypeTag[DocumentEdge[Document[Uml]]])
-  : NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
-
-    import documentOps._
-
-    object ResultSetAggregator {
-      def zero[A]:  NonEmptyList[java.lang.Throwable] \&/ Set[A] = \&/.That(Set[A]())
-    }
-
-    trait ResultSetAggregator[A] extends Monoid[NonEmptyList[java.lang.Throwable] \&/ Set[A]] {
-      type F = NonEmptyList[java.lang.Throwable] \&/ Set[A]
-      override def zero: F = ResultSetAggregator.zero[A]
-      override def append(f1: F, f2: => F): F = f1 append f2
-    }
-
-    val documents: ResultSetAggregator[SerializableDocument[Uml]]#F =
-      ( ResultSetAggregator.zero[SerializableDocument[Uml]] /: specificationRootPackages ) {
-        case (acc, (pkg, info)) =>
-        acc append
-        createSerializableDocumentFromExistingRootPackage(info, pkg, specificationRootPackages).map(Set(_)).toThese
-      }
-
-    val result
-    :  NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
-    documents
-    .flatMap { serializableDocuments =>
-
-      val ds
-      : NonEmptyList[java.lang.Throwable] \&/ (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) =
-      createDocumentSet(
-        serializableDocuments,
-        builtInDocuments,
-        builtInDocumentEdges,
-        documentURIMapper,
-        builtInURIMapper,
-        aggregate)
-        .flatMap { ds =>
-          ds
-          .resolve(
-              ignoreCrossReferencedElementFilter,
-              unresolvedElementMapper)
-
-        }
-
-      ds
-    }
-
-    result
-  }
 }

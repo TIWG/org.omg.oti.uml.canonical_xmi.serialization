@@ -63,9 +63,9 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   import umlOps._
 
-  implicit val documentOps: DocumentOps[Uml]
-
   implicit val documentSet: DocumentSet[Uml]
+
+  implicit val documentOps: DocumentOps[Uml] = documentSet.documentOps
 
   protected val element2id: Element2IDHashMap
 
@@ -73,9 +73,11 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   protected val containmentRules: List[ContainedElement2IDRule]
 
-  protected val element2documentTable: Map[UMLElement[Uml], Document[Uml]]
+  protected val element2documentTable: Map[UMLElement[Uml], Document[Uml]] = 
+    documentSet.computeElement2DocumentMap
   
-  protected val element2documentCache = new scala.collection.mutable.HashMap[UMLElement[Uml], Document[Uml]]()
+  protected val element2documentCache = 
+    new scala.collection.mutable.HashMap[UMLElement[Uml], Document[Uml]]()
   
   def element2document
   (e: UMLElement[Uml])
@@ -157,7 +159,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           .illegalElementError[Uml, UMLElement[Uml]]("Unknown document for element reference to", Iterable(to)))
         .left
       }{
-        case db2: BuiltInDocument[Uml] =>
+        case db2: Document[Uml] with BuiltInDocument =>
           require(d1 != db2)
           // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
           val bid = for {
@@ -190,7 +192,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
           bid
 
-        case _: SerializableDocument[Uml] =>
+        case _: Document[Uml] with SerializableDocument =>
           getMappedOrReferencedElement(to)
           .flatMap( _to => getXMI_ID(_to).map(OTI_ID.unwrap))
 
@@ -223,7 +225,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               "getXMI_ID error: Unknown document for element reference"))
           .left
         }{
-          case d: BuiltInDocument[Uml] =>
+          case d: Document[Uml] with BuiltInDocument =>
             self
             .toolSpecific_id
             .fold[NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID)] {
@@ -237,7 +239,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               id.right
             }
 
-          case d: SerializableDocument[Uml] =>
+          case d: Document[Uml] with SerializableDocument =>
             self
             .oti_xmiID
             .flatMap(oid =>
@@ -535,7 +537,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           .flatMap { tid =>
               val targetID =
                 element2document(relTarget) match {
-                  case Some(d: BuiltInDocument[Uml]) =>
+                  case Some(d: Document[Uml] with BuiltInDocument) =>
                     OTI_ID(IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + tid))
                   case _ =>
                     tid

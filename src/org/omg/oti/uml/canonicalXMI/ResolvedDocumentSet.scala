@@ -124,7 +124,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                       s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
                       Iterable(s)))))
             ) {
-              case d: BuiltInDocument[Uml] =>
+              case d: Document[Uml] with BuiltInDocument =>
                 dOps
                 .getExternalDocumentURL(d.documentURL)
                 .flatMap { url =>
@@ -156,7 +156,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                     })
                 }
 
-              case d: SerializableDocument[Uml] =>
+              case d: Document[Uml] with SerializableDocument =>
                 \/-(Tuple2(_id, _uuid))
 
               case d: Document[Uml] =>
@@ -177,14 +177,14 @@ case class ResolvedDocumentSet[Uml <: UML]
   def serialize
   ()
   (implicit idg: IDGenerator[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] = {
+  : NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = {
 
-    val s0: NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] = Set().right
-    val sN: NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] = (s0 /: g.nodes) {
+    val s0: NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = Set().right
+    val sN: NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = (s0 /: g.nodes) {
       (si, n) => n.value match {
-        case _: BuiltInDocument[Uml] =>
+        case _: Document[Uml] with BuiltInDocument =>
           si
-        case d: SerializableDocument[Uml] =>
+        case d: Document[Uml] with SerializableDocument =>
           si +++ serialize(d)
       }
     }
@@ -195,13 +195,9 @@ case class ResolvedDocumentSet[Uml <: UML]
   def serializePkg
   (pkg: UMLPackage[Uml])
   (implicit idg: IDGenerator[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] =
-    ds
-      .serializableDocuments
-      .find { d =>
-        d.scope == pkg
-      }
-      .fold[NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)]] {
+  : NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] =
+    ds.lookupDocumentByScope(pkg)
+      .fold[NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)]] {
       NonEmptyList(
         resolvedDocumentSetException(
           this,
@@ -223,11 +219,11 @@ case class ResolvedDocumentSet[Uml <: UML]
     tagValueNodes +++ stereotypeTagValue.serialize(xmiScopes, idg).map(_.to[List])
 
   protected def serialize
-  (d: SerializableDocument[Uml])
+  (d: Document[Uml])
   (implicit idg: IDGenerator[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] =
+  : NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] =
     \/.fromTryCatchNonFatal(new java.net.URI(OTI_URI.unwrap(d.info.packageURI)))
-      .fold[NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)]](
+      .fold[NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)]](
     l = (t: java.lang.Throwable) =>
       -\/(
         NonEmptyList[java.lang.Throwable](
@@ -242,7 +238,7 @@ case class ResolvedDocumentSet[Uml <: UML]
       .flatMap { ruri =>
 
         val uri = ruri.getOrElse(duri)
-        val result: NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] =
+        val result: NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] =
           \/.fromTryCatchNonFatal(new java.io.File(uri)) match {
             case -\/(t) =>
               -\/(
@@ -266,12 +262,12 @@ case class ResolvedDocumentSet[Uml <: UML]
     )
 
   protected def serialize
-  (d: SerializableDocument[Uml],
+  (d: Document[Uml],
    d_id: String @@ OTI_ID,
    d_uuid: String @@ OTI_UUID,
    furi: java.io.File)
   (implicit idg: IDGenerator[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] = {
+  : NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = {
 
     val dir = furi.getParentFile
     dir.mkdirs()
@@ -303,14 +299,14 @@ case class ResolvedDocumentSet[Uml <: UML]
   }
 
   protected def serialize
-  (d: SerializableDocument[Uml],
+  (d: Document[Uml],
    d_id: String @@ OTI_ID,
    d_uuid: String @@ OTI_UUID,
    furi: java.io.File,
    element2stereotypeTagValues: Map[UMLElement[Uml], Seq[UMLStereotypeTagValue[Uml]]],
    referencedProfiles: List[UMLProfile[Uml]])
   (implicit idg: IDGenerator[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] = {
+  : NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = {
     import DocumentSet._
     import scala.xml._
 
@@ -336,7 +332,7 @@ case class ResolvedDocumentSet[Uml <: UML]
   }
 
   protected def serialize
-  (d: SerializableDocument[Uml],
+  (d: Document[Uml],
    d_id: String @@ OTI_ID,
    d_uuid: String @@ OTI_UUID,
    furi: java.io.File,
@@ -344,8 +340,7 @@ case class ResolvedDocumentSet[Uml <: UML]
    referencedProfiles: List[UMLProfile[Uml]],
    xmiScopes: scala.xml.NamespaceBinding)
   (implicit idg: IDGenerator[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Set[(SerializableDocument[Uml], java.io.File)] = {
-    import scala.xml._
+  : NonEmptyList[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = {
 
     val elementOrdering = scala.collection.mutable.ArrayBuffer[UMLElement[Uml]]()
 
@@ -363,42 +358,44 @@ case class ResolvedDocumentSet[Uml <: UML]
 
     result
       .flatMap { top =>
-        val mofTagRef: MetaData =
-          new PrefixedAttribute(pre = "xmi", key = "idref", value = OTI_ID.unwrap(d_id), Null)
-        val mofTagElement: Node =
-          Elem(
+        val mofTagRef: scala.xml.MetaData =
+          new scala.xml.PrefixedAttribute(pre = "xmi", key = "idref", value = OTI_ID.unwrap(d_id), scala.xml.Null)
+        val mofTagElement: scala.xml.Node =
+          scala.xml.Elem(
             prefix = null, label = "element", attributes = mofTagRef,
             scope = xmiScopes, minimizeEmpty = true)
-        val mofTag = Elem(
+        val mofTag = scala.xml.Elem(
           prefix = "mofext",
           label = "Tag",
           attributes =
-            new PrefixedAttribute(
+            new scala.xml.PrefixedAttribute(
               pre = "xmi", key = "id", value = d_id + "_mofext.Tag",
-              new PrefixedAttribute(
+              new scala.xml.PrefixedAttribute(
                 pre = "xmi", key = "uuid", value = d_uuid + "_mofext.Tag",
-                new PrefixedAttribute(
+                new scala.xml.PrefixedAttribute(
                   pre = "xmi", key = "type", value = "mofext:Tag",
                   d.scope match {
                     case ne: UMLNamedElement[Uml] =>
                       ne
                         .name
-                        .fold[MetaData](Null) { name =>
-                        new UnprefixedAttribute(
+                        .fold[scala.xml.MetaData](scala.xml.Null) { name =>
+                        new scala.xml.UnprefixedAttribute(
                           key = "name", value = "org.omg.xmi.nsPrefix",
-                          new UnprefixedAttribute(
+                          new scala.xml.UnprefixedAttribute(
                             key = "value", value = name,
-                            Null))
+                            scala.xml.Null))
                       }
                     case _ =>
-                      Null
+                      scala.xml.Null
                   }))),
           scope = xmiScopes,
           minimizeEmpty = true,
           mofTagElement)
 
-        val sTV0: NonEmptyList[java.lang.Throwable] \/ List[Node] = List[Node]().right
-        val sTVN: NonEmptyList[java.lang.Throwable] \/ List[Node] = (sTV0 /: elementOrdering.to[List]) { (sTVi, e) =>
+        val sTV0: NonEmptyList[java.lang.Throwable] \/ List[scala.xml.Node] = 
+          List[scala.xml.Node]().right
+        val sTVN: NonEmptyList[java.lang.Throwable] \/ List[scala.xml.Node] = 
+          (sTV0 /: elementOrdering.to[List]) { (sTVi, e) =>
           e
           .xmiID()
           .flatMap { eID =>
@@ -430,32 +427,37 @@ case class ResolvedDocumentSet[Uml <: UML]
                   )
 
 
-              val oTVE0: NonEmptyList[java.lang.Throwable] \/ List[Node] = List[Node]().right
-              val oTVEN: NonEmptyList[java.lang.Throwable] \/ List[Node] = (oTVE0 /: ordering) { (oTVEi, s) =>
+              val oTVE0: NonEmptyList[java.lang.Throwable] \/ List[scala.xml.Node] = 
+                List[scala.xml.Node]().right
+              val oTVEN: NonEmptyList[java.lang.Throwable] \/ List[scala.xml.Node] = 
+                (oTVE0 /: ordering) { (oTVEi, s) =>
                 getStereotype_ID_UUID(s)
                   .flatMap {
                     case (sID, sUUID) =>
-                      val tagValueAttributes: NonEmptyList[java.lang.Throwable] \/ List[Elem] =
+                      val tagValueAttributes: NonEmptyList[java.lang.Throwable] \/ List[scala.xml.Elem] =
                         allTagValuesByStereotype
                           .get(s)
-                          .fold[NonEmptyList[java.lang.Throwable] \/ List[Elem]](List[Elem]().right) { vs =>
-                          val tagValueAttribute0: NonEmptyList[java.lang.Throwable] \/ List[Elem] = List[Elem]().right
+                          .fold[NonEmptyList[java.lang.Throwable] \/ List[scala.xml.Elem]](
+                              List[scala.xml.Elem]().right
+                          ) { vs =>
+                          val tagValueAttribute0: NonEmptyList[java.lang.Throwable] \/ List[scala.xml.Elem] =
+                            List[scala.xml.Elem]().right
                           val tagValueAttributeN = (tagValueAttribute0 /: vs) (foldTagValues(xmiScopes, idg))
                           tagValueAttributeN
                         }
                       val stAppID = IDGenerator.computeStereotypeApplicationID(eID, sID)
                       val stAppUUID = IDGenerator.computeStereotypeApplicationUUID(eUUID, sUUID)
                       val xmiTagValueAttributes =
-                        new PrefixedAttribute(
+                        new scala.xml.PrefixedAttribute(
                           pre = "xmi", key = "id", value = OTI_ID.unwrap(stAppID),
-                          new PrefixedAttribute(
+                          new scala.xml.PrefixedAttribute(
                             pre = "xmi", key = "uuid", value = OTI_UUID.unwrap(stAppUUID),
-                            new PrefixedAttribute(
+                            new scala.xml.PrefixedAttribute(
                               pre = "xmi", key = "type", value = s.profile.get.name.get + ":" + s.name.get,
-                              Null)))
+                              scala.xml.Null)))
 
                       tagValueAttributes.map { tVAs =>
-                        List(Elem(
+                        List(scala.xml.Elem(
                           prefix = s.profile.get.name.get,
                           label = s.name.get,
                           attributes = xmiTagValueAttributes,
@@ -475,10 +477,10 @@ case class ResolvedDocumentSet[Uml <: UML]
         sTVN
           .flatMap { stereotypeTagValues =>
 
-            val xmi = Elem(
+            val xmi = scala.xml.Elem(
               prefix = "xmi",
               label = "XMI",
-              attributes = Null,
+              attributes = scala.xml.Null,
               scope = xmiScopes,
               minimizeEmpty = true,
               top :: mofTag :: stereotypeTagValues: _*)
@@ -486,7 +488,7 @@ case class ResolvedDocumentSet[Uml <: UML]
             val filepath = furi.getPath + ".xmi"
             \/.fromTryCatchNonFatal[java.io.File]({
               val xmlFile = new java.io.File(filepath)
-              val xmlPrettyPrinter = new PrettyPrinter(width = 300, step = 2)
+              val xmlPrettyPrinter = new scala.xml.PrettyPrinter(width = 300, step = 2)
               val xmlOutput = xmlPrettyPrinter.format(xmi)
               val bw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(xmlFile), "UTF-8"))
               bw.println("<?xml version='1.0' encoding='UTF-8'?>")
@@ -502,7 +504,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                       + s"${d.info.packageURI} to file: $filepath: ${t.getMessage}",
                     t)).left
               case \/-(file) =>
-                Set[(SerializableDocument[Uml], java.io.File)]((d, file)).right
+                Set[(Document[Uml], java.io.File)]((d, file)).right
             }
           }
       }
@@ -671,7 +673,7 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   protected def generateNodeElement
   (elementOrdering: scala.collection.mutable.ArrayBuffer[UMLElement[Uml]],
-   d: SerializableDocument[Uml],
+   d: Document[Uml],
    prefix: String,
    label: String,
    e: UMLElement[Uml],
@@ -681,16 +683,14 @@ case class ResolvedDocumentSet[Uml <: UML]
 
     elementOrdering += e
 
-    import scala.xml._
-
     //    assert(
     //      Thread.currentThread().getStackTrace.count( _.getMethodName == "generateNodeElement" ) == 1,
     //      s"Verification that the trampolined function 'wrapNodes' runs recursively " +
     //      s"stack-free for label=${label}, e=${e.xmiID}" )
 
     def foldAttribute
-    (next: NonEmptyList[java.lang.Throwable] \/ MetaData, f: e.MetaAttributeFunction)
-    : NonEmptyList[java.lang.Throwable] \/ MetaData =
+    (next: NonEmptyList[java.lang.Throwable] \/ scala.xml.MetaData, f: e.MetaAttributeFunction)
+    : NonEmptyList[java.lang.Throwable] \/ scala.xml.MetaData =
       (next, f.evaluate(e, idg, idg.otiCharacteristicsProvider)) match {
         case (-\/(t), _) =>
           t.left
@@ -701,10 +701,10 @@ case class ResolvedDocumentSet[Uml <: UML]
             case (_n, _value) =>
               f
               .attributePrefix
-              .fold[Attribute] {
-                new UnprefixedAttribute(key = f.attributeName, value = _value, _n)
+              .fold[scala.xml.Attribute] {
+                new scala.xml.UnprefixedAttribute(key = f.attributeName, value = _value, _n)
               } { aPrefix =>
-                new PrefixedAttribute(pre = aPrefix, key = f.attributeName, value = _value, _n)
+                new scala.xml.PrefixedAttribute(pre = aPrefix, key = f.attributeName, value = _value, _n)
               }
           }.right
       }
@@ -720,36 +720,36 @@ case class ResolvedDocumentSet[Uml <: UML]
         case (\/-(ns), \/-(values)) =>
           val valueNodes = for {
             value <- values
-          } yield Elem(
+          } yield scala.xml.Elem(
             prefix = null, label = f.attributeName,
-            attributes = Null, scope = xmiScopes, minimizeEmpty = true, Text(value))
+            attributes = scala.xml.Null, scope = xmiScopes, minimizeEmpty = true, scala.xml.Text(value))
           (ns ++ valueNodes).right
       }
 
     def foldReference
-    (nodes: NonEmptyList[java.lang.Throwable] \/ NodeSeq, f: e.MetaPropertyEvaluator)
-    : NonEmptyList[java.lang.Throwable] \/ NodeSeq =
-      nodes.flatMap { ns: NodeSeq =>
+    (nodes: NonEmptyList[java.lang.Throwable] \/ scala.xml.NodeSeq, f: e.MetaPropertyEvaluator)
+    : NonEmptyList[java.lang.Throwable] \/ scala.xml.NodeSeq =
+      nodes.flatMap { ns: scala.xml.NodeSeq =>
         f match {
           case rf: e.MetaReferenceEvaluator =>
             rf
             .evaluate(e)
             .flatMap(
-              _.fold[NonEmptyList[java.lang.Throwable] \/ NodeSeq](
+              _.fold[NonEmptyList[java.lang.Throwable] \/ scala.xml.NodeSeq](
                 ns.right
               ){ eRef =>
                 eRef
                 .xmiID()
                 .flatMap { eRefID =>
                   element2mappedDocument(eRef)
-                  .fold[NonEmptyList[java.lang.Throwable] \/ NodeSeq](
+                  .fold[NonEmptyList[java.lang.Throwable] \/ scala.xml.NodeSeq](
                     ns.right
                   ){ dRef =>
                     if (d == dRef) {
-                      val idrefAttrib: MetaData =
-                        new PrefixedAttribute(pre = "xmi", key = "idref", value = OTI_ID.unwrap(eRefID), Null)
-                      val idrefNode: Node =
-                        Elem(
+                      val idrefAttrib: scala.xml.MetaData =
+                        new scala.xml.PrefixedAttribute(pre = "xmi", key = "idref", value = OTI_ID.unwrap(eRefID), scala.xml.Null)
+                      val idrefNode: scala.xml.Node =
+                        scala.xml.Elem(
                           prefix = null, label = f.propertyName,
                           attributes = idrefAttrib, scope = xmiScopes, minimizeEmpty = true)
                       (ns :+ idrefNode).right
@@ -757,18 +757,18 @@ case class ResolvedDocumentSet[Uml <: UML]
                       val href = dRef.documentURL + "#" + eRefID
                       val externalHRef: NonEmptyList[java.lang.Throwable] \/ String =
                         dRef match {
-                          case _: SerializableDocument[Uml] =>
+                          case _: Document[Uml] with SerializableDocument =>
                             href.right
-                          case _: BuiltInDocument[Uml] =>
+                          case _: Document[Uml] with BuiltInDocument =>
                             ds.builtInURIMapper.resolve(href).map(_.getOrElse(href))
                         }
 
                       externalHRef
                       .map { exhref =>
-                        val hrefAttrib: MetaData =
-                          new UnprefixedAttribute(key = "href", value = exhref, Null)
-                        val hrefNode: Node =
-                          Elem(
+                        val hrefAttrib: scala.xml.MetaData =
+                          new scala.xml.UnprefixedAttribute(key = "href", value = exhref, scala.xml.Null)
+                        val hrefNode: scala.xml.Node =
+                          scala.xml.Elem(
                             prefix = null, label = f.propertyName, attributes = hrefAttrib,
                             scope = xmiScopes, minimizeEmpty = true)
                         (ns :+ hrefNode)
@@ -790,21 +790,21 @@ case class ResolvedDocumentSet[Uml <: UML]
                       eRefs
                     else
                       eRefs.sortBy(_.xmiOrderingKey.getOrElse("")) // @todo propagate errors
-                  val hRef0: NonEmptyList[java.lang.Throwable] \/ NodeSeq = NodeSeq.Empty.right
-                  val hRefN: NonEmptyList[java.lang.Throwable] \/ NodeSeq = (hRef0 /: ordered_eRefs ) {
+                  val hRef0: NonEmptyList[java.lang.Throwable] \/ scala.xml.NodeSeq = scala.xml.NodeSeq.Empty.right
+                  val hRefN: NonEmptyList[java.lang.Throwable] \/ scala.xml.NodeSeq = (hRef0 /: ordered_eRefs ) {
                     (hRefi, eRef) =>
                       eRef.xmiID()
                         .flatMap { eRefID =>
                           element2mappedDocument(eRef)
-                            .fold[NonEmptyList[java.lang.Throwable] \/ NodeSeq](
-                            NodeSeq.Empty.right
+                            .fold[NonEmptyList[java.lang.Throwable] \/ scala.xml.NodeSeq](
+                            scala.xml.NodeSeq.Empty.right
                           ) { dRef =>
-                            val dNodes: NonEmptyList[java.lang.Throwable] \/ NodeSeq =
+                            val dNodes: NonEmptyList[java.lang.Throwable] \/ scala.xml.NodeSeq =
                               if (d == dRef) {
-                                val idrefAttrib: MetaData =
-                                  new PrefixedAttribute(pre = "xmi", key = "idref", value = OTI_ID.unwrap(eRefID), Null)
-                                val idrefNode: Node =
-                                  Elem(
+                                val idrefAttrib: scala.xml.MetaData =
+                                  new scala.xml.PrefixedAttribute(pre = "xmi", key = "idref", value = OTI_ID.unwrap(eRefID), scala.xml.Null)
+                                val idrefNode: scala.xml.Node =
+                                  scala.xml.Elem(
                                     prefix = null, label = f.propertyName,
                                     attributes = idrefAttrib, scope = xmiScopes, minimizeEmpty = true)
                                 \/-(idrefNode)
@@ -812,18 +812,18 @@ case class ResolvedDocumentSet[Uml <: UML]
                                 val href = dRef.documentURL.toString + "#" + eRefID
                                 val externalHRef: NonEmptyList[java.lang.Throwable] \/ String =
                                   dRef match {
-                                    case _: SerializableDocument[Uml] =>
+                                    case _: Document[Uml] with SerializableDocument =>
                                       href.right
-                                    case _: BuiltInDocument[Uml] =>
+                                    case _: Document[Uml] with BuiltInDocument =>
                                       ds.builtInURIMapper.resolve(href).map(_.getOrElse(href))
                                   }
 
                                 externalHRef
                                   .map { exhref =>
-                                    val hrefAttrib: MetaData =
-                                      new UnprefixedAttribute(key = "href", value = exhref, Null)
-                                    val hrefNode: Node =
-                                      Elem(
+                                    val hrefAttrib: scala.xml.MetaData =
+                                      new scala.xml.UnprefixedAttribute(key = "href", value = exhref, scala.xml.Null)
+                                    val hrefNode: scala.xml.Node =
+                                      scala.xml.Elem(
                                         prefix = null, label = f.propertyName, attributes = hrefAttrib,
                                         scope = xmiScopes, minimizeEmpty = true)
                                     hrefNode
@@ -857,14 +857,14 @@ case class ResolvedDocumentSet[Uml <: UML]
     (f: e.MetaPropertyEvaluator,
      sub: UMLElement[Uml])
     : NonEmptyList[java.lang.Throwable] \/ scala.xml.Node = {
-      val idRefAttrib: MetaData =
-        new PrefixedAttribute(
+      val idRefAttrib: scala.xml.MetaData =
+        new scala.xml.PrefixedAttribute(
           pre = "xmi",
           key = "idref",
           value = sub.xmiID().map(OTI_ID.unwrap).getOrElse(""), // @todo propagate errors
-          Null)
+          scala.xml.Null)
 
-      val idRefNode: Node = Elem(
+      val idRefNode: scala.xml.Node = scala.xml.Elem(
         prefix = null,
         label = f.propertyName,
         attributes = idRefAttrib,
@@ -892,9 +892,9 @@ case class ResolvedDocumentSet[Uml <: UML]
     : NonEmptyList[java.lang.Throwable] \/ SerializationState = {
       val (
         resultingSubElements: Set[UMLElement[Uml]],
-        nested: SortedMap[String, Node],
-        idrefs: SortedMap[String, Node]) =
-        (Tuple3(subElements, SortedMap.empty[String, Node], SortedMap.empty[String, Node]) /: subs) {
+        nested: SortedMap[String, scala.xml.Node],
+        idrefs: SortedMap[String, scala.xml.Node]) =
+        (Tuple3(subElements, SortedMap.empty[String, scala.xml.Node], SortedMap.empty[String, scala.xml.Node]) /: subs) {
           case ((visitedElements, sub_nested, sub_idrefs), subElement) =>
             if (visitedElements.contains(subElement))
               waitGenerateNodeReference(f, subElement) match {
@@ -1062,7 +1062,7 @@ case class ResolvedDocumentSet[Uml <: UML]
     val duplicates = refEvaluators.toSet.intersect(subEvaluators.toSet)
     require(duplicates.isEmpty, s"${e.xmiType} ${duplicates.size}: $duplicates")
 
-    val mofAttributes0: NonEmptyList[java.lang.Throwable] \/ MetaData = \/-(Null)
+    val mofAttributes0: NonEmptyList[java.lang.Throwable] \/ scala.xml.MetaData = \/-(scala.xml.Null)
     (mofAttributes0 /: e.mofXMI_metaAtttributes.reverse) (foldAttribute) match {
       case -\/(t) =>
         return_ {
