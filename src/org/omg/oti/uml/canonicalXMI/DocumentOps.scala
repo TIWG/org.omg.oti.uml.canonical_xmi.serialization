@@ -80,6 +80,25 @@ trait DocumentOps[Uml <: UML] {
   implicit val otiCharacteristicsProvider: OTICharacteristicsProvider[Uml]
 
   /**
+    * Get the URI of the document as an externally accessible resource.
+    *
+    * @param lurl The `LoadURL` coordinates of the external document to load
+    * @return The URI where the document can be accesssed as an external resource
+    */
+  def getExternalDocumentURL
+  (lurl: Uml#LoadURL)
+  : NonEmptyList[java.lang.Throwable] \/ URI
+
+  /**
+    * Open an input stream on the external document to load
+    * @param lurl The `LoadURL` coordinates of the external document to load
+    * @return an input stream for reading the XMI contents of the external document to load
+    */
+  def openExternalDocumentStreamForImport
+  (lurl: Uml#LoadURL)
+  : NonEmptyList[java.lang.Throwable] \/ InputStream
+
+  /**
     * Add a document as a new node to an existing document set graph
     *
     * @param ds A DocumentSet graph
@@ -109,25 +128,6 @@ trait DocumentOps[Uml <: UML] {
       else 
         ds.freezeSerializableMutableDocument(mD)
   }
-
-  /**
-    * Get the URI of the document as an externally accessible resource.
-    *
-    * @param lurl The `LoadURL` coordinates of the external document to load
-    * @return The URI where the document can be accesssed as an external resource
-    */
-  def getExternalDocumentURL
-  (lurl: Uml#LoadURL)
-  : NonEmptyList[java.lang.Throwable] \/ URI
-
-  /**
-    * Open an input stream on the external document to load
-    * @param lurl The `LoadURL` coordinates of the external document to load
-    * @return an input stream for reading the XMI contents of the external document to load
-    */
-  def openExternalDocumentStreamForImport
-  (lurl: Uml#LoadURL)
-  : NonEmptyList[java.lang.Throwable] \/ InputStream
 
   /**
    * Create a BuiltInImmutableDocument for a root package scope whose contents are fully known.
