@@ -79,8 +79,8 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
       % Versions.jpl_mbee_common_scala_libraries artifacts 
       Artifact("all-owlapi-libraries", "zip", "zip"),
 
-      "org.omg.tiwg" %% "oti-core"
-        % Versions.oti_core % "compile" withSources() withJavadoc()
+      "org.omg.tiwg" %% "oti-uml-core"
+        % Versions.oti_uml_core % "compile" withSources() withJavadoc()
     ),
 
     IMCEKeys.nexusJavadocRepositoryRestAPIURL2RepositoryName := Map(
