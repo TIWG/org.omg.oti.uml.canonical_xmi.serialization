@@ -71,16 +71,16 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
     cleanFiles += (classDirectory in Compile).value,
 
     libraryDependencies ++= Seq (
-      "gov.nasa.jpl.imce.thirdParty" %% "all-graph-libraries"
-        % Versions.jpl_mbee_common_scala_libraries artifacts
-        Artifact("all-graph-libraries", "zip", "zip", Some("resource"), Seq(), None, Map()),
+      "gov.nasa.jpl.imce.thirdParty" %% "scala-graph-libraries"
+        % Versions_scala_graph_libraries.version artifacts
+        Artifact("scala-graph-libraries", "zip", "zip", Some("resource"), Seq(), None, Map()),
 
-      "gov.nasa.jpl.imce.thirdParty" %% "all-owlapi-libraries" 
-        % Versions.jpl_mbee_common_scala_libraries artifacts
-        Artifact("all-owlapi-libraries", "zip", "zip", Some("resource"), Seq(), None, Map()),
+      "gov.nasa.jpl.imce.thirdParty" %% "owlapi-libraries"
+        % Versions_owlapi_libraries.version artifacts
+        Artifact("owlapi-libraries", "zip", "zip", Some("resource"), Seq(), None, Map()),
 
       "org.omg.tiwg" %% "oti-uml-core"
-        % Versions.oti_uml_core % "compile" withSources() withJavadoc() artifacts
+        % Versions_oti_uml_core.version % "compile" withSources() withJavadoc() artifacts
         Artifact("oti-uml-core", "zip", "zip", Some("resource"), Seq(), None, Map())
     ),
 
