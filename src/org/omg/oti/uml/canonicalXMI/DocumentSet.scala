@@ -124,10 +124,10 @@ trait DocumentSet[Uml <: UML] {
   val allMutableDocuments: Set[MutableDocument[Uml]] =
     loadingMutableDocuments ++ serializableMutableDocuments ++ builtInMutableDocuments
     
-  val allSerializableDocuments: Set[Document[Uml]] = 
+  val allSerializableDocuments: Set[Document[Uml] with SerializableDocument] =
     serializableImmutableDocuments ++ serializableMutableDocuments
     
-  val allBuiltInDocuments: Set[Document[Uml]] =
+  val allBuiltInDocuments: Set[Document[Uml] with BuiltInDocument] =
     builtInImmutableDocuments ++ builtInMutableDocuments
     
   val allDocuments: Set[Document[Uml]] = 
