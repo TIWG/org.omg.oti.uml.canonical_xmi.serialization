@@ -46,7 +46,7 @@ import org.omg.oti.uml.read.operations._
 
 import scala.collection.immutable._
 import scala.reflect.runtime.universe._
-import scala.Predef.String
+import scala.Predef.{identity,String}
 import scala.StringContext
 import scalaz._
 
@@ -98,6 +98,40 @@ trait DocumentOps[Uml <: UML] {
   : NonEmptyList[java.lang.Throwable] \/ InputStream
 
   /**
+    * Add a set of Documents to a DocumentSet
+    *
+    * Note that for performance reasons, the return type is `Set[Throwable] \&/ DocumentSet[Uml]` (fast merge)
+    * rather than the `NonEmptyList[Throwable] \&/ DocumentSet[Uml]` (slow merge).
+    *
+    * @param ds DocumentSet
+    * @param d a set of Documents
+    * @return The DocumentSet resulting from adding each Document di in d where di can be successfully added.
+    */
+  def addDocuments
+  (ds: DocumentSet[Uml],
+   d: Set[Document[Uml]])
+  : Set[java.lang.Throwable] \&/ DocumentSet[Uml] = {
+
+    val r0: Set[java.lang.Throwable] \&/ DocumentSet[Uml] = \&/.That(ds)
+    val rN: Set[java.lang.Throwable] \&/ DocumentSet[Uml] = (r0 /: d) { case (acc, di) =>
+        addDocument(ds, di)
+          .fold[Set[java.lang.Throwable] \&/ DocumentSet[Uml]](
+          l = (nels: NonEmptyList[java.lang.Throwable]) =>
+            acc.bimap[Set[java.lang.Throwable], DocumentSet[Uml]](
+              f = (ness: Set[java.lang.Throwable]) => ness ++ nels.list,
+              g = identity
+            ),
+          r = (dsi: DocumentSet[Uml]) =>
+            acc.onlyThis.fold[Set[java.lang.Throwable] \&/ DocumentSet[Uml]](\&/.That(dsi)){
+              nels =>
+                \&/.Both(nels, dsi)
+            }
+        )
+    }
+    rN
+  }
+
+  /**
     * Add a document as a new node to an existing document set graph
     *
     * @param ds A DocumentSet graph
@@ -129,19 +163,20 @@ trait DocumentOps[Uml <: UML] {
   }
 
   /**
-   * Create a BuiltInImmutableDocument for a root package scope whose contents are fully known.
-   *
-   * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
-   *
-   * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
-   * @param documentURL the `LoadURL` information about the external URL from where
-   *                    the contents of built-in document contents correspond to those of the root package
-   * @param root a tool-specific root package corresponding to the tool-specific implementation
-   *             of an OMG-defined document (e.g., the OMG UML2.5 PrimitiveTypes library)
-   * @return A tuple with:
-   *         - a BuiltInDocument, `d`
-   *         - a DocumentSet, `ds'`, which is `ds` + `d`
-   */
+    * Create a BuiltInMutableDocument for a root package scope whose contents are subject to change.
+    *
+    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
+    *
+    * @param ds DocumentSet
+    * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
+    * @param documentURL the `LoadURL` information about the external URL from where
+    *                    the contents of built-in document contents correspond to those of the root package
+    * @param root a tool-specific root package corresponding to the tool-specific implementation
+    *             of an OMG-defined document (e.g., the OMG UML2.5 PrimitiveTypes library)
+    * @return A tuple with:
+    *         - a BuiltInDocument, `d`
+    *         - a DocumentSet, `ds'`, which is `ds` + `d`
+    */
   def addBuiltInImmutableDocument
   ( ds: DocumentSet[Uml],
     info: OTISpecificationRootCharacteristics,
@@ -150,6 +185,21 @@ trait DocumentOps[Uml <: UML] {
     builtInExtent: Set[UMLElement[Uml]] )
   : NonEmptyList[java.lang.Throwable] \/ ( BuiltInImmutableDocument[Uml], DocumentSet[Uml] )
 
+  /**
+    * Create a BuiltInImmutableDocument for a root package scope whose contents are fully known.
+    *
+    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
+    *
+    * @param ds DocumentSet
+    * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
+    * @param documentURL the `LoadURL` information about the external URL from where
+    *                    the contents of built-in document contents correspond to those of the root package
+    * @param root a tool-specific root package corresponding to the tool-specific implementation
+    *             of an OMG-defined document (e.g., the OMG UML2.5 PrimitiveTypes library)
+    * @return A tuple with:
+    *         - a BuiltInDocument, `d`
+    *         - a DocumentSet, `ds'`, which is `ds` + `d`
+    */
   def addBuiltInMutableDocument
   ( ds: DocumentSet[Uml],
     info: OTISpecificationRootCharacteristics,
@@ -158,17 +208,18 @@ trait DocumentOps[Uml <: UML] {
   : NonEmptyList[java.lang.Throwable] \/ ( BuiltInMutableDocument[Uml], DocumentSet[Uml] )
 
   /**
-   * Create a LoadingMutableDocument for a root package scope whose contents are subject to change
-   *
-   * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
-   *
-   * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
-   * @param documentURL the `LoadURL` information about the external URL from where
-   *                    the serializable document contents will be read into the contents of
-   *                    the root package
-   * @param root the root package scope of the OTI serializable document
-   * @return If successful, a SerializableDocument for the `root` package scope
-   */
+    * Create a LoadingMutableDocument for a root package scope whose contents are subject to change
+    *
+    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
+    *
+    * @param ds DocumentSet
+    * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
+    * @param documentURL the `LoadURL` information about the external URL from where
+    *                    the serializable document contents will be read into the contents of
+    *                    the root package
+    * @param root the root package scope of the OTI serializable document
+    * @return If successful, a SerializableDocument for the `root` package scope
+    */
   def addLoadingMutableDocument
   ( ds: DocumentSet[Uml],
     info: OTISpecificationRootCharacteristics,
@@ -177,16 +228,19 @@ trait DocumentOps[Uml <: UML] {
   : NonEmptyList[java.lang.Throwable] \/ ( LoadingMutableDocument[Uml], DocumentSet[Uml] )
   
   /**
-   * Create a SerializableImmutableDocument for an existing root package whose contents are fully known
-   *
-   * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Creation
-   *
-   * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
-   * @param root The root package scope of the serializable document
-   * @param specificationRootPackages The map of root packages to their characteristics
-   * @return A SerializableDocument if the `root` package has the necessary information to specify
-   *         how it should be eventually serialized per OMG XMI 2.5.1
-   */
+    * Create a SerializableImmutableDocument for an existing root package whose contents are fully known
+    *
+    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Creation
+    *
+    * @param ds DocumentSet
+    * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
+    * @param documentURL the `LoadURL` information about the external URL from where
+    *                    the serializable document contents will be read into the contents of
+    *                    the root package
+    * @param root The root package scope of the serializable document
+    * @return A SerializableDocument if the `root` package has the necessary information to specify
+    *         how it should be eventually serialized per OMG XMI 2.5.1
+    */
   def addSerializableImmutableDocument
   ( ds: DocumentSet[Uml],
     info: OTISpecificationRootCharacteristics,
@@ -195,17 +249,18 @@ trait DocumentOps[Uml <: UML] {
   : NonEmptyList[java.lang.Throwable] \/ ( SerializableImmutableDocument[Uml], DocumentSet[Uml] )
 
   /**
-   * Create a SerializableMutableDocument for a root package scope whose contents are subject to change
-   *
-   * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
-   *
-   * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
-   * @param documentURL the `LoadURL` information about the external URL from where
-   *                    the serializable document contents will be read into the contents of
-   *                    the root package
-   * @param root the root package scope of the OTI serializable document
-   * @return If successful, a SerializableDocument for the `root` package scope
-   */
+    * Create a SerializableMutableDocument for a root package scope whose contents are subject to change
+    *
+    * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
+    *
+    * @param ds DocumentSet
+    * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
+    * @param documentURL the `LoadURL` information about the external URL from where
+    *                    the serializable document contents will be read into the contents of
+    *                    the root package
+    * @param root the root package scope of the OTI serializable document
+    * @return If successful, a SerializableDocument for the `root` package scope
+    */
   def addSerializableMutableDocument
   ( ds: DocumentSet[Uml],
     info: OTISpecificationRootCharacteristics,
@@ -214,20 +269,19 @@ trait DocumentOps[Uml <: UML] {
   : NonEmptyList[java.lang.Throwable] \/ ( SerializableMutableDocument[Uml], DocumentSet[Uml] )
 
   /**
-   * Create a DocumentSet graph for document nodes (serializable or built-in) and inter-document edges
-   *
-   * @param serializableDocuments The set of SerializableDocument nodes in the graph
-   * @param builtInDocuments The set of BuiltInDocument nodes in the graph
-   * @param builtInDocumentEdges The set of inter-document edges amongst built-in document nodes
-   * @param documentURIMapper OASIS XML Catalog-based mapping of package or element URIs
-   *                          to serializable document URLs and element URIs
-   * @param builtInURIMapper OASIS XML Catalog-based mapping of package or element URIs
-   *                         to OMG-published document URLs and element URIs
-   * @param ops OTI UML Read Operations API
-   * @param nodeT Scala type information about Document[UML] graph nodes
-   * @param edgeT Scala type information about Document[UML] to Document[UML] graph edges
-   * @return A DocumentSet graph
-   */
+    * Create a DocumentSet graph for document nodes (serializable or built-in) and inter-document edges
+    *
+    * @param documents The set of document nodes
+    * @param documentURIMapper OASIS XML Catalog-based mapping of package or element URIs
+    *                          to serializable document URLs and element URIs
+    * @param builtInURIMapper OASIS XML Catalog-based mapping of package or element URIs
+    *                         to OMG-published document URLs and element URIs
+    * @param aggregate Document Set Aggregate
+    * @param ops OTI UML Read Operations API
+    * @param nodeT Scala type information about Document[UML] graph nodes
+    * @param edgeT Scala type information about Document[UML] to Document[UML] graph edges
+    * @return A DocumentSet graph
+    */
   def createDocumentSet
   ( documents: Set[Document[Uml]],
     documentURIMapper: CatalogURIMapper,
