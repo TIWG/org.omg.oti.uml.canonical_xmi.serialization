@@ -23,15 +23,6 @@ developers := List(
     email="yves.bernard@airbus.com",
     url=url("http://airbus.com")))
 
-lazy val buildUTCDate = SettingKey[String]("build-utc-date", "The UDC Date of the build")
-
-buildUTCDate in Global := {
-  import java.util.{ Date, TimeZone }
-  val formatter = new java.text.SimpleDateFormat("yyyy-MM-dd-HH:mm")
-  formatter.setTimeZone(TimeZone.getTimeZone("UTC"))
-  formatter.format(new Date)
-}
-
 lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
   .enablePlugins(IMCEGitPlugin)
   .enablePlugins(IMCEReleasePlugin)
@@ -69,6 +60,8 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
     scalaSource in Compile := baseDirectory.value / "svn" / "org.omg.oti.uml.canonicalXMI" / "src",
     classDirectory in Compile := baseDirectory.value / "svn" / "org.omg.oti.uml.canonicalXMI" / "bin",
     cleanFiles += (classDirectory in Compile).value,
+
+    extractArchives := {},
 
     libraryDependencies ++= Seq (
       "gov.nasa.jpl.imce.thirdParty" %% "scala-graph-libraries"
