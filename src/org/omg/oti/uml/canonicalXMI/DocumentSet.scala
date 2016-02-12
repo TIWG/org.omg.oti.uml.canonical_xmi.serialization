@@ -252,7 +252,7 @@ trait DocumentSet[Uml <: UML] {
    includeAllForwardRelationTriple: (Document[Uml], RelationTriple[Uml], Document[Uml]) => Boolean =
      DocumentSet.includeAllForwardRelationTriple[Uml])
   : NonEmptyList[java.lang.Throwable] \&/ 
-    (ResolvedDocumentSet[Uml], Iterable[UnresolvedElementCrossReference[Uml]]) = {
+    (ResolvedDocumentSet[Uml], scala.collection.immutable.Iterable[UnresolvedElementCrossReference[Uml]]) = {
 
     val e2d: Map[UMLElement[Uml], Document[Uml]] = computeElement2DocumentMap
 
@@ -505,7 +505,7 @@ object DocumentSet {
           UMLError
           .illegalElementError[Uml, UMLValueSpecification[Uml]](
             s"No value=>string serialization support for ${v.xmiType.head} (ID=${v.xmiID})",
-            Iterable(value)))
+            scala.collection.immutable.Iterable(value)))
         .left
     }
 
