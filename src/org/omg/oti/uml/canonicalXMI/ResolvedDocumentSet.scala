@@ -75,39 +75,40 @@ class ResolvedDocumentSetException[Uml <: UML]
   *
   * @param ds Information about the set of `Document` in scope of the resolution process
   * @param g The resolved directed graph of `Document` nodes & edges. This directed graph may have cycles!
-  * @param element2document Map from `UMLElement` to its containing `Document` node in the graph
   * @param unresolvedElementMapper A partial function for mapping unresolved `UMLElement` to a resolvable `UMLElement`
   * @tparam Uml The type signature for a tool-specific adaptation of the OTI UML API
   */
 case class ResolvedDocumentSet[Uml <: UML]
 (ds: DocumentSet[Uml],
  g: DocumentSet[Uml]#MutableDocumentSetGraph,
- val element2document: Map[UMLElement[Uml], Document[Uml]],
  unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]]) {
 
   implicit val dOps = ds.documentOps
 
   def isElementMapped2Document(e: UMLElement[Uml]): Boolean =
-    element2mappedDocument(e).nonEmpty
+    element2mappedDocument(e).isDefined
 
-  def element2mappedDocument(e: UMLElement[Uml]): Option[Document[Uml]] =
-    element2document
-      .get(e)
-      .orElse {
-        unresolvedElementMapper(e)
-          .flatMap { em =>
-            element2document.get(em)
-          }
-      }
+  def element2mappedDocument(e: UMLElement[Uml]): Option[Document[Uml]] = {
+    val d
+    : Option[Document[Uml]]
+    = ds.lookupDocumentByExtent(e)
+    d
+  }
 
   def getStereotype_ID_UUID
   (s: UMLStereotype[Uml])
   (implicit idg: IDGenerator[Uml]) 
   : NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID) = {
-    s
+
+    val result
+    : NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID)
+    = s
       .xmiID()
       .flatMap { _id =>
-        s
+
+        val id_uuid
+        : NonEmptyList[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID)
+        = s
           .xmiUUID()
           .flatMap { _uuid =>
 
@@ -125,35 +126,35 @@ case class ResolvedDocumentSet[Uml <: UML]
             ) {
               case d: Document[Uml] with BuiltInDocument =>
                 dOps
-                .getExternalDocumentURL(d.documentURL)
-                .flatMap { url =>
-                  catching(
-                    classOf[java.lang.NullPointerException],
-                    classOf[java.lang.IllegalArgumentException])
-                    .withApply {
-                      (cause: java.lang.Throwable) =>
-                        -\/(
-                          NonEmptyList(
-                            resolvedDocumentSetException(
-                              this,
-                              "getStereotype_ID_UUID failed",
-                              UMLError
-                                .illegalElementError[Uml, UMLStereotype[Uml]](
-                                s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
-                                Iterable(s)))))
-                    }
-                    .apply({
-                      val builtInURI = url.resolve("#" + _id).toString
-                      ds.builtInURIMapper.resolve(builtInURI)
-                      .map { oresolved =>
-                        val mappedURI = oresolved.getOrElse(builtInURI)
-                        val fragmentIndex = mappedURI.lastIndexOf('#')
-                        require(fragmentIndex > 0)
-                        val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
-                        Tuple2(OTI_ID(fragment), OTI_UUID(OTI_NS_PREFIX.unwrap(d.info.nsPrefix) + fragment))
+                  .getExternalDocumentURL(d.documentURL)
+                  .flatMap { url =>
+                    catching(
+                      classOf[java.lang.NullPointerException],
+                      classOf[java.lang.IllegalArgumentException])
+                      .withApply {
+                        (cause: java.lang.Throwable) =>
+                          -\/(
+                            NonEmptyList(
+                              resolvedDocumentSetException(
+                                this,
+                                "getStereotype_ID_UUID failed",
+                                UMLError
+                                  .illegalElementError[Uml, UMLStereotype[Uml]](
+                                  s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
+                                  Iterable(s)))))
                       }
-                    })
-                }
+                      .apply({
+                        val builtInURI = url.resolve("#" + _id).toString
+                        ds.builtInURIMapper.resolve(builtInURI)
+                          .map { oresolved =>
+                            val mappedURI = oresolved.getOrElse(builtInURI)
+                            val fragmentIndex = mappedURI.lastIndexOf('#')
+                            require(fragmentIndex > 0)
+                            val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
+                            Tuple2(OTI_ID(fragment), OTI_UUID(OTI_NS_PREFIX.unwrap(d.info.nsPrefix) + fragment))
+                          }
+                      })
+                  }
 
               case d: Document[Uml] with SerializableDocument =>
                 \/-(Tuple2(_id, _uuid))
@@ -170,7 +171,11 @@ case class ResolvedDocumentSet[Uml <: UML]
                         Iterable(s)))))
             }
           }
+
+        id_uuid
       }
+
+    result
   }
 
   def serialize
@@ -287,7 +292,7 @@ case class ResolvedDocumentSet[Uml <: UML]
           case (_, stereotypeTagValues) =>
             stereotypeTagValues
               .to[Set]
-              .flatMap(_.appliedStereotype.profile.filter(element2document.contains(_)))
+              .flatMap(_.appliedStereotype.profile.filter(isElementMapped2Document))
         }
 
       val profiles: List[UMLProfile[Uml]] =
@@ -413,7 +418,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                 element2stereotypeTagValues
                   .get(e)
                   .fold[Set[UMLStereotype[Uml]]](Set()) { tagValues =>
-                  tagValues.map(_.appliedStereotype).toSet filter element2document.contains
+                  tagValues.map(_.appliedStereotype).toSet filter isElementMapped2Document
                 }
 
               val ordering: List[UMLStereotype[Uml]] =

@@ -72,23 +72,10 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   protected val containmentRules: List[ContainedElement2IDRule]
 
-  protected val element2documentTable: Map[UMLElement[Uml], Document[Uml]] = 
-    documentSet.computeElement2DocumentMap
-  
-  protected val element2documentCache = 
-    new scala.collection.mutable.HashMap[UMLElement[Uml], Document[Uml]]()
-  
   def element2document
   (e: UMLElement[Uml])
-  : Option[Document[Uml]] = 
-    element2documentTable.get(e)
-    .orElse(element2documentCache.get(e))
-    .orElse {
-      documentSet.lookupDocumentByExtent(e).map { d =>
-        element2documentCache += (e -> d)
-        d
-      }
-    }
+  : Option[Document[Uml]]
+  = documentSet.lookupDocumentByExtent(e)
 
   override def element2mappedDocument
   (e: UMLElement[Uml])

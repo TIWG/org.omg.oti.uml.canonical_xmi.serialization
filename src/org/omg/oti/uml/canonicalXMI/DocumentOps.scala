@@ -48,7 +48,7 @@ import scala.collection.immutable._
 import scala.reflect.runtime.universe._
 import scala.Predef.{identity,String}
 import scala.StringContext
-import scalaz._
+import scalaz._, Scalaz._
 
 import java.io.InputStream
 import java.net.URI
@@ -71,8 +71,7 @@ class DocumentOpsException[Uml <: UML]
  * OMG Tool-neutral API extension for document-related processing of OMG UML 2.5 compliant models
  *
  * @see OMG XMI 2.5, formal/2015-06-07 http://www.omg.org/spec/XMI/2.5.1
- *
- * @tparam Uml Type signature of a tool-specific adaptation of OMG UML 2.5
+  * @tparam Uml Type signature of a tool-specific adaptation of OMG UML 2.5
  */
 trait DocumentOps[Uml <: UML] {
 
@@ -90,6 +89,7 @@ trait DocumentOps[Uml <: UML] {
 
   /**
     * Open an input stream on the external document to load
+    *
     * @param lurl The `LoadURL` coordinates of the external document to load
     * @return an input stream for reading the XMI contents of the external document to load
     */
@@ -114,19 +114,46 @@ trait DocumentOps[Uml <: UML] {
 
     val r0: Set[java.lang.Throwable] \&/ DocumentSet[Uml] = \&/.That(ds)
     val rN: Set[java.lang.Throwable] \&/ DocumentSet[Uml] = (r0 /: d) { case (acc, di) =>
-        addDocument(ds, di)
+
+      val acci
+      : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
+      = acc.flatMap { dsi =>
+        val added1
+        : NonEmptyList[java.lang.Throwable] \/ DocumentSet[Uml]
+        = addDocument(dsi, di)
+
+        val added2
+        : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
+        = added1
           .fold[Set[java.lang.Throwable] \&/ DocumentSet[Uml]](
-          l = (nels: NonEmptyList[java.lang.Throwable]) =>
-            acc.bimap[Set[java.lang.Throwable], DocumentSet[Uml]](
-              f = (ness: Set[java.lang.Throwable]) => ness ++ nels.list,
+          l = (a: NonEmptyList[java.lang.Throwable]) => {
+            val next
+            : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
+            = acc.bimap[Set[java.lang.Throwable], DocumentSet[Uml]](
+              f = (ness: Set[java.lang.Throwable]) => {
+                val added_ness: Set[java.lang.Throwable] = ness ++ a.list
+                added_ness
+              },
               g = identity
-            ),
-          r = (dsi: DocumentSet[Uml]) =>
-            acc.onlyThis.fold[Set[java.lang.Throwable] \&/ DocumentSet[Uml]](\&/.That(dsi)){
+            )
+            next
+          },
+          r = (b: DocumentSet[Uml]) => {
+            val next
+            : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
+            = acc.onlyThis.fold[Set[java.lang.Throwable] \&/ DocumentSet[Uml]](
+              \&/.That(b)
+            ) {
               nels =>
-                \&/.Both(nels, dsi)
+                \&/.Both(nels, b)
             }
+            next
+          }
         )
+
+        added2
+      }
+      acci
     }
     rN
   }
@@ -166,7 +193,6 @@ trait DocumentOps[Uml <: UML] {
     * Create a BuiltInMutableDocument for a root package scope whose contents are subject to change.
     *
     * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
-    *
     * @param ds DocumentSet
     * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
     * @param documentURL the `LoadURL` information about the external URL from where
@@ -189,7 +215,6 @@ trait DocumentOps[Uml <: UML] {
     * Create a BuiltInImmutableDocument for a root package scope whose contents are fully known.
     *
     * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
-    *
     * @param ds DocumentSet
     * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
     * @param documentURL the `LoadURL` information about the external URL from where
@@ -211,7 +236,6 @@ trait DocumentOps[Uml <: UML] {
     * Create a LoadingMutableDocument for a root package scope whose contents are subject to change
     *
     * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
-    *
     * @param ds DocumentSet
     * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
     * @param documentURL the `LoadURL` information about the external URL from where
@@ -231,7 +255,6 @@ trait DocumentOps[Uml <: UML] {
     * Create a SerializableImmutableDocument for an existing root package whose contents are fully known
     *
     * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Creation
-    *
     * @param ds DocumentSet
     * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
     * @param documentURL the `LoadURL` information about the external URL from where
@@ -252,7 +275,6 @@ trait DocumentOps[Uml <: UML] {
     * Create a SerializableMutableDocument for a root package scope whose contents are subject to change
     *
     * @see OMG XMI 2.5.1, formal/2015-06-07, section 7.13.2 Procedures, Document Import
-    *
     * @param ds DocumentSet
     * @param info the OTI specification characteristics of the `scope` UML Package as the root of an OTI document
     * @param documentURL the `LoadURL` information about the external URL from where

@@ -130,7 +130,7 @@ trait DocumentSet[Uml <: UML] {
   val allBuiltInDocuments: Set[Document[Uml] with BuiltInDocument] =
     builtInImmutableDocuments ++ builtInMutableDocuments
     
-  val allDocuments: Set[Document[Uml]] = 
+  val allDocuments: Set[Document[Uml]] =
     loadingMutableDocuments ++ allSerializableDocuments ++ allBuiltInDocuments
   
   val documentURIMapper: CatalogURIMapper
@@ -144,22 +144,6 @@ trait DocumentSet[Uml <: UML] {
   implicit val nodeT: TypeTag[Document[Uml]]
   implicit val edgeT: TypeTag[DocumentEdge[Document[Uml]]]
 
-  val element2ImmutableDocument: Map[UMLElement[Uml], ImmutableDocument[Uml]] = {
-    val m1 =
-      for { 
-        d <- serializableImmutableDocuments
-        e <- d.extent
-      } yield (e -> d)
-      
-    val m2 =
-      for { 
-        d <- builtInImmutableDocuments
-        e <- d.extent
-      } yield (e -> d)
-      
-    (m1 ++ m2).toMap
-  }
-  
   def asBuiltInMutableDocument
   (d: LoadingMutableDocument[Uml],
    artifactKind: OTIArtifactKind)
@@ -177,19 +161,43 @@ trait DocumentSet[Uml <: UML] {
   def freezeSerializableMutableDocument
   (d: SerializableMutableDocument[Uml])
   : NonEmptyList[java.lang.Throwable] \/ (SerializableImmutableDocument[Uml], DocumentSet[Uml])
-  
-  def lookupDocumentByExtent(e: UMLElement[Uml]): Option[Document[Uml]] =
-    element2ImmutableDocument.get(e)
-    .orElse(allMutableDocuments.find(d => d.includes(e)))
-    
-  def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] =
-    allDocuments.find(d => d.scope == e)
-      
-  def computeElement2DocumentMap: Map[UMLElement[Uml], Document[Uml]] = 
-     allDocuments.flatMap { d => d.extent.map(_ -> d).toMap }.toMap
-     
+
+  /*
+   * @TODO Consider caching.
+   */
+  def lookupDocumentByExtent(e: UMLElement[Uml]): Option[Document[Uml]] = {
+    val od
+    : Option[Document[Uml]]
+    = allDocuments.find(d => d.extent.exists(_ == e))
+    od
+  }
+
+  /*
+   * @TODO Consider caching.
+   */
+  def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] = {
+    val od
+    : Option[Document[Uml]]
+    = allDocuments.find(d => d.scope == e)
+    od
+  }
+
+  /*
+   * @TODO Consider caching.
+   */
+  def computeElement2DocumentMap: Map[UMLElement[Uml], Document[Uml]] = {
+
+    val element2document
+    : Set[(UMLElement[Uml], Document[Uml])]
+    = allDocuments.flatMap { d => d.extent.map(_ -> d).toMap }
+
+    element2document.toMap
+  }
+
+
   /**
     * All owned elements of a package excluding the extent of any nested Document scope package
+    *
     * @param p a UML Package
     * @return a set, s, such that if e in s, then e is nested in p and e is not in the scope of any Document
     */
@@ -251,91 +259,112 @@ trait DocumentSet[Uml <: UML] {
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
    includeAllForwardRelationTriple: (Document[Uml], RelationTriple[Uml], Document[Uml]) => Boolean =
      DocumentSet.includeAllForwardRelationTriple[Uml])
-  : NonEmptyList[java.lang.Throwable] \&/ 
+  : Set[java.lang.Throwable] \&/
     (ResolvedDocumentSet[Uml], scala.collection.immutable.Iterable[UnresolvedElementCrossReference[Uml]]) = {
-
-    val e2d: Map[UMLElement[Uml], Document[Uml]] = computeElement2DocumentMap
-
-    def lookupDocumentForElement
-    (e: UMLElement[Uml])
-    : Option[Document[Uml]]
-    = e2d
-      .get(e)
-      .orElse {
-        if (ignoreCrossReferencedElementFilter(e))
-          None
-        else
-          unresolvedElementMapper(e)
-          .flatMap { eMapped =>
-            e2d.get(eMapped)
-          }
-      }
 
     val g = mGraphFactory.empty()
 
     // add each document as a node in the graph
-    e2d.values foreach { d => g += d }
+    allDocuments foreach { d => g += d }
 
     type UnresolvedElementCrossReferences = Set[UnresolvedElementCrossReference[Uml]]
     type Document2RelationTriples = Map[Document[Uml], Seq[RelationTriple[Uml]]]
     type DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
     (Map[(Document[Uml], Document[Uml]), Seq[RelationTriple[Uml]]], UnresolvedElementCrossReferences)
 
-    val u0: NonEmptyList[java.lang.Throwable] \&/
-            DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
-      \&/.That(
+    val u0
+    : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
+    = \&/.That(
         ( Map[(Document[Uml], Document[Uml]), Seq[RelationTriple[Uml]]](),
           Set[UnresolvedElementCrossReference[Uml]]()
         ))
     val empty_uxref = Set[UnresolvedElementCrossReference[Uml]]()
     val empty_d2triples = Map[Document[Uml], Seq[RelationTriple[Uml]]]()
 
-    val uN: NonEmptyList[java.lang.Throwable] \&/ 
-            DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
-      (u0 /: e2d) { case (ui, (e, d)) =>
+    val uN
+    : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
+    = (u0 /: allDocuments) { (ui, d) =>
 
-        ui.flatMap { case (dPair2relationTriples1, unresolvedXRefs1) =>
+      val acc_d
+      : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
+      = ui.flatMap { case (dPair2relationTriples1, unresolvedXRefs1) =>
 
-          e.forwardRelationTriples()
-            .toThese
-            .map { triples =>
+        val extent0
+        : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
+        = \&/.That((dPair2relationTriples1, unresolvedXRefs1))
 
-              val (unresolvedXRefs2: UnresolvedElementCrossReferences, 
-                   triplesByDocument: Document2RelationTriples) =
-                ((empty_uxref, empty_d2triples) /: triples) {
-                  case ((us, d2ts), t) =>
-                    lookupDocumentForElement(t.obj)
-                      .fold[(UnresolvedElementCrossReferences, Document2RelationTriples)](
-                      (us + UnresolvedElementCrossReference(d, t), d2ts)
-                    ) { dRef =>
-                      if (includeAllForwardRelationTriple(d, t, dRef))
-                        (us, d2ts.updated(dRef, t +: d2ts.getOrElse(dRef, Seq[RelationTriple[Uml]]())))
-                      else
-                        (us, d2ts)    
+        val extentN
+        : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
+        = (extent0 /: d.extent) { (extentI, e) =>
+
+          val extentK =
+            extentI.flatMap {
+              case (ti, ui) =>
+
+                val eTriples
+                : Set[java.lang.Throwable] \&/ Set[RelationTriple[Uml]]
+                = e
+                  .forwardRelationTriples()
+                  .leftMap[Set[java.lang.Throwable]](_.list.toSet)
+                  .toThese
+
+                val tu_triples
+                : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
+                = eTriples
+                  .map { triples =>
+
+                    val (unresolvedXRefs: UnresolvedElementCrossReferences, triplesByDocument: Document2RelationTriples)
+                    = ((empty_uxref, empty_d2triples) /: triples) {
+                      case ((us, d2ts), t) =>
+                        lookupDocumentByExtent(t.obj)
+                          .fold[(UnresolvedElementCrossReferences, Document2RelationTriples)](
+                          (us + UnresolvedElementCrossReference(d, t), d2ts)
+                        ) { dRef =>
+                          if (includeAllForwardRelationTriple(d, t, dRef))
+                            (us, d2ts.updated(dRef, t +: d2ts.getOrElse(dRef, Seq[RelationTriple[Uml]]())))
+                          else
+                            (us, d2ts)
+                        }
                     }
-                }
 
-              val dPair2relationTriples2 = (dPair2relationTriples1 /: triplesByDocument) {
-                case (dPair2triples, (dRef, refTriples)) =>
-                  if (d == dRef)
-                    // do not create a self-edge for intra-document reference triples
-                    dPair2triples
-                  else {
-                    // only add inter-document edges with the reference triples
-                    val key = (d, dRef)
-                    dPair2triples.updated(
-                      key,
-                      value = dPair2triples.getOrElse(key, Seq[RelationTriple[Uml]]()) ++ refTriples
-                    )
+                    val tj = (ti /: triplesByDocument) {
+                      case (dPair2triples, (dRef, refTriples)) =>
+                        if (d == dRef)
+                        // do not create a self-edge for intra-document reference triples
+                          dPair2triples
+                        else {
+                          // only add inter-document edges with the reference triples
+                          val key = (d, dRef)
+                          dPair2triples.updated(
+                            key,
+                            value = dPair2triples.getOrElse(key, Seq[RelationTriple[Uml]]()) ++ refTriples
+                          )
+                        }
+                    }
+
+                    (tj, ui ++ unresolvedXRefs)
                   }
-              }
 
-              (dPair2relationTriples2, unresolvedXRefs1 ++ unresolvedXRefs2)
+                // finished processing all of e's forward relation triples
+                tu_triples
             }
+
+          // finished processing element e in d's extent
+          extentK
         }
+
+        // finished processing all of d's extent
+        extentN
       }
 
-    uN.map { case (dPair2relationTriples, unresolved) =>
+      // finished processing all the documents
+      acc_d
+    }
+
+    val result
+    : Set[java.lang.Throwable] \&/
+      (ResolvedDocumentSet[Uml], scala.collection.immutable.Iterable[UnresolvedElementCrossReference[Uml]])
+    = uN.map { case (dPair2relationTriples, unresolved) =>
       dPair2relationTriples.foreach { case ((dFrom, dTo), triples) =>
         // For each inter-document edge: dFrom ~> dTo, record all the RelationTripes(subject, object)
         // where subject is in dFrom and object is in dTo as the justification for the edge.
@@ -344,10 +373,11 @@ trait DocumentSet[Uml <: UML] {
       (ResolvedDocumentSet(
         this,
         g,
-        e2d,
         unresolvedElementMapper),
         unresolved)
     }
+
+    result
   }
 
   /**
