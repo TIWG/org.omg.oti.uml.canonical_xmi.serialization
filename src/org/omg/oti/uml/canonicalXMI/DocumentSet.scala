@@ -168,7 +168,15 @@ trait DocumentSet[Uml <: UML] {
   def lookupDocumentByExtent(e: UMLElement[Uml]): Option[Document[Uml]] = {
     val od
     : Option[Document[Uml]]
-    = allDocuments.find(d => d.extent.exists(_ == e))
+    = allDocuments.find { d =>
+      val found1 = d.scope == e
+      if (found1)
+        true
+      else {
+        val found2 = d.includes(e)
+        found2
+      }
+    }
     od
   }
 
