@@ -3,6 +3,7 @@ import sbt.Keys._
 import sbt._
 
 import gov.nasa.jpl.imce.sbt._
+import gov.nasa.jpl.imce.sbt.ProjectHelper._
 
 useGpg := true
 
@@ -103,6 +104,7 @@ def docSettings(diagrams:Boolean): Seq[Setting[_]] =
 lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
   .enablePlugins(IMCEGitPlugin)
   .enablePlugins(IMCEReleasePlugin)
+  .settings(IMCEReleasePlugin.packageReleaseProcessSettings)
   .settings(dynamicScriptsResourceSettings(Some("org.omg.oti.uml.canonical_xmi.serialization")))
   .settings(IMCEPlugin.strictScalacFatalWarningsSettings)
   .settings(docSettings(diagrams=false))
@@ -136,9 +138,8 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
     organizationName := "JPL, Caltech, Airbus & Object Management Group",
     organizationHomepage := Some(url("http://solitaire.omg.org/browse/TIWG")),
 
-    scalaSource in Compile := baseDirectory.value / "svn" / "org.omg.oti.uml.canonicalXMI" / "src",
-    classDirectory in Compile := baseDirectory.value / "svn" / "org.omg.oti.uml.canonicalXMI" / "bin",
-    cleanFiles += (classDirectory in Compile).value,
+    scalaSource in Compile :=
+      baseDirectory.value / "svn" / "org.omg.oti.uml.canonicalXMI" / "src",
 
     extractArchives := {},
 
@@ -149,11 +150,7 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
 
       "gov.nasa.jpl.imce.thirdParty" %% "owlapi-libraries"
         % Versions_owlapi_libraries.version artifacts
-        Artifact("owlapi-libraries", "zip", "zip", Some("resource"), Seq(), None, Map()),
-
-      "org.omg.tiwg" %% "oti-uml-core"
-        % Versions_oti_uml_core.version % "compile" withSources() withJavadoc() artifacts
-        Artifact("oti-uml-core", "zip", "zip", Some("resource"), Seq(), None, Map())
+        Artifact("owlapi-libraries", "zip", "zip", Some("resource"), Seq(), None, Map())
     ),
 
     IMCEKeys.nexusJavadocRepositoryRestAPIURL2RepositoryName := Map(
@@ -162,8 +159,15 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
     IMCEKeys.pomRepositoryPathRegex := """\<repositoryPath\>\s*([^\"]*)\s*\<\/repositoryPath\>""".r
 
   )
-  .settings(IMCEReleasePlugin.packageReleaseProcessSettings)
-
+  .dependsOnSourceProjectOrLibraryArtifacts(
+    "oti-uml-core",
+    "org.omg.oti.uml.core",
+    Seq(
+      "org.omg.tiwg" %% "oti-uml-core"
+        % Versions_oti_uml_core.version % "compile" withSources() withJavadoc() artifacts
+        Artifact("oti-uml-core", "zip", "zip", Some("resource"), Seq(), None, Map())
+    )
+  )
 
 def dynamicScriptsResourceSettings(dynamicScriptsProjectName: Option[String] = None): Seq[Setting[_]] = {
 
