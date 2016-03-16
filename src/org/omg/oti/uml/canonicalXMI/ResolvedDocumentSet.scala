@@ -144,7 +144,9 @@ case class ResolvedDocumentSet[Uml <: UML]
                                   Iterable(s)))))
                       }
                       .apply({
-                        val builtInURI = url.resolve("#" + _id).toString
+                        val sToolID = s.toolSpecific_id
+                        require(sToolID.isDefined)
+                        val builtInURI = url.resolve("#" + sToolID.get).toString
                         ds.builtInURIMapper.resolve(builtInURI)
                           .map { oresolved =>
                             val mappedURI = oresolved.getOrElse(builtInURI)
@@ -758,24 +760,38 @@ case class ResolvedDocumentSet[Uml <: UML]
                           attributes = idrefAttrib, scope = xmiScopes, minimizeEmpty = true)
                       (ns :+ idrefNode).right
                     } else {
-                      val href = dRef.documentURL + "#" + eRefID
-                      val externalHRef: NonEmptyList[java.lang.Throwable] \/ String =
-                        dRef match {
+                      dOps
+                      .getExternalDocumentURL(dRef.documentURL)
+                      .flatMap { dURI =>
+                        val oti_href = dURI.toString + "#" + eRefID
+                        
+                        val eRefToolID = eRef.toolSpecific_id
+                        require(eRefToolID.isDefined)                        
+                        val tool_href = dURI.toString + "#" + eRefToolID.get
+                        
+                        val externalHRef
+                        : NonEmptyList[java.lang.Throwable] \/ String 
+                        = dRef match {
                           case _: Document[Uml] with SerializableDocument =>
-                            href.right
+                            oti_href.right
                           case _: Document[Uml] with BuiltInDocument =>
-                            ds.builtInURIMapper.resolve(href).map(_.getOrElse(href))
+                            ds.builtInURIMapper.resolve(tool_href).map(_.getOrElse(tool_href))
                         }
 
-                      externalHRef
-                      .map { exhref =>
-                        val hrefAttrib: scala.xml.MetaData =
-                          new scala.xml.UnprefixedAttribute(key = "href", value = exhref, scala.xml.Null)
-                        val hrefNode: scala.xml.Node =
-                          scala.xml.Elem(
+                        externalHRef
+                        .map { exhref =>
+                          val hrefAttrib
+                          : scala.xml.MetaData 
+                          = new scala.xml.UnprefixedAttribute(key = "href", value = exhref, scala.xml.Null)
+                        
+                          val hrefNode
+                          : scala.xml.Node 
+                          = scala.xml.Elem(
                             prefix = null, label = f.propertyName, attributes = hrefAttrib,
                             scope = xmiScopes, minimizeEmpty = true)
-                        (ns :+ hrefNode)
+                          
+                          (ns :+ hrefNode)
+                        }
                       }
                     }
                   }
@@ -813,13 +829,18 @@ case class ResolvedDocumentSet[Uml <: UML]
                                     attributes = idrefAttrib, scope = xmiScopes, minimizeEmpty = true)
                                 \/-(idrefNode)
                               } else {
-                                val href = dRef.documentURL.toString + "#" + eRefID
+                                val oti_href = dRef.documentURL.toString + "#" + eRefID
+                                
+                                val eRefToolID = eRef.toolSpecific_id
+                                require(eRefToolID.isDefined)                        
+                                val tool_href = dRef.documentURL.toString + "#" + eRefToolID.get
+                        
                                 val externalHRef: NonEmptyList[java.lang.Throwable] \/ String =
                                   dRef match {
                                     case _: Document[Uml] with SerializableDocument =>
-                                      href.right
+                                      oti_href.right
                                     case _: Document[Uml] with BuiltInDocument =>
-                                      ds.builtInURIMapper.resolve(href).map(_.getOrElse(href))
+                                      ds.builtInURIMapper.resolve(tool_href).map(_.getOrElse(tool_href))
                                   }
 
                                 externalHRef
