@@ -1082,8 +1082,31 @@ case class ResolvedDocumentSet[Uml <: UML]
       }
     }
 
-    val refEvaluators: Seq[e.MetaPropertyEvaluator] = e.referenceMetaProperties
-    val subEvaluators: Seq[e.MetaPropertyEvaluator] = e.compositeMetaProperties
+    val refEvaluators
+    : Seq[e.MetaPropertyEvaluator] 
+    = {
+      val allRefs: Seq[e.MetaPropertyEvaluator] = e.referenceMetaProperties
+      val redefined
+      : Set[e.MetaPropertyEvaluator] 
+      = allRefs.to[Set].flatMap { r: e.MetaPropertyEvaluator =>
+        r
+        .redefinedMetaProperties
+        .map(_.asInstanceOf[e.MetaPropertyEvaluator])
+      }
+      allRefs.filterNot(redefined.contains)
+    }
+    
+    val subEvaluators
+    : Seq[e.MetaPropertyEvaluator] 
+    = {
+      val allComps: Seq[e.MetaPropertyEvaluator] = e.compositeMetaProperties
+      val redefined
+      : Set[e.MetaPropertyEvaluator]
+      = allComps.to[Set].flatMap { r: e.MetaPropertyEvaluator =>
+        r.redefinedMetaProperties.map(_.asInstanceOf[e.MetaPropertyEvaluator])
+      }
+      allComps.filterNot(redefined.contains)
+    }
     val duplicates = refEvaluators.toSet.intersect(subEvaluators.toSet)
     require(duplicates.isEmpty, s"${e.xmiType} ${duplicates.size}: $duplicates")
 
