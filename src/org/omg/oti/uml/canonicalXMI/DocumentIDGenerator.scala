@@ -506,8 +506,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   /**
    * Rule #3: any Element on which Rule#2 does not apply and which is a DirectedRelationship
    *
-   * Check if the target of a directed relationship is an element in a Built-In Document
-   * (e.g., UML Metamodel, StandardProfile, etc...) As of OMG UML 2.5, such target elements
+   * Check if the source & target of a directed relationship are elements of a Built-In Document
+   * (e.g., UML Metamodel, StandardProfile, etc...) As of OMG UML 2.5, such source/target elements
    * may have a legacy xmi:ID such as "_0" which is is insufficient to avoid duplication.
    * (For example, a package that imports both UML Metamodel and StandardProfile)
    *
@@ -517,20 +517,39 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    */
   val crule3: ContainedElement2IDRule = {
     case (owner, ownerID, cf, dr: UMLDirectedRelationship[Uml]) =>
-      dr.target.toList match {
-        case List(relTarget) =>
-          getXMI_IDREF_or_HREF_fragment(owner, relTarget)
-          .flatMap { tid =>
-              val targetID =
-                element2document(relTarget) match {
-                  case Some(d: Document[Uml] with BuiltInDocument) =>
-                    OTI_ID(IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + tid))
-                  case _ =>
-                    tid
-                }
+      (dr.source.toList, dr.target.toList) match {
+        case (List(relSource), List(relTarget)) =>
+          getXMI_IDREF_or_HREF_fragment(owner, relSource)
+            .flatMap { sid =>
+              getXMI_IDREF_or_HREF_fragment(owner, relTarget)
+                .flatMap { tid =>
 
-              \/-(OTI_ID(OTI_ID.unwrap(ownerID) + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + targetID))
-          }
+                  val sourceID =
+                    element2document(relSource) match {
+                      case Some(d: Document[Uml] with BuiltInDocument) =>
+                        OTI_ID(IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + sid))
+                      case _ =>
+                        sid
+                    }
+
+                  val targetID =
+                    element2document(relTarget) match {
+                      case Some(d: Document[Uml] with BuiltInDocument) =>
+                        OTI_ID(IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + tid))
+                      case _ =>
+                        tid
+                    }
+
+                  val relID =
+                    OTI_ID.unwrap(ownerID) +
+                      "." + sourceID +
+                      "._" + IDGenerator.xmlSafeID(cf.propertyName) +
+                      "._" + dr.mofMetaclassName +
+                      "." + targetID
+
+                  \/-(OTI_ID(relID))
+                }
+            }
         case _ =>
           NonEmptyList(
             documentIDGeneratorException(

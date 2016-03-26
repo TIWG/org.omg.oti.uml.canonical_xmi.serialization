@@ -169,7 +169,8 @@ trait DocumentSet[Uml <: UML] {
     val od
     : Option[Document[Uml]]
     = allDocuments.find { d =>
-      val found1 = d.scope == e
+      val dScope = d.scope
+      val found1 = dScope == e
       if (found1)
         true
       else {
