@@ -43,28 +43,35 @@ import java.net.URL
 
 import org.omg.oti.uml.OTIPrimitiveTypes._
 import org.omg.oti.uml.UMLError
+import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.xmi._
 
-import scala.{Boolean,Int,Option,None,Some,StringContext,Unit}
-import scala.Predef.{require,String}
+import scala.{Boolean, Int, None, Option, Some, StringContext, Unit}
+import scala.Predef.{String, require}
 import scala.collection.immutable._
-import scala.Predef.{Set => _, Map => _, _}
+import scala.Predef.{Map => _, Set => _, _}
 import scala.language.postfixOps
 import scala.util.control.Exception._
-import scalaz._, Scalaz._
+import scalaz._
+import Scalaz._
 
 /**
  * @tparam Uml
  */
 trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
-  import umlOps._
-
   implicit val documentSet: DocumentSet[Uml]
 
+  override implicit val umlOps = documentSet.ops
+
+  import umlOps._
+
   implicit val documentOps: DocumentOps[Uml] = documentSet.documentOps
+
+  override implicit val otiCharacteristicsProvider: OTICharacteristicsProvider[Uml] =
+    documentOps.otiCharacteristicsProvider
 
   protected val element2id: Element2IDHashMap
 
