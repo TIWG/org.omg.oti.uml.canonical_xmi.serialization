@@ -41,7 +41,7 @@ package org.omg.oti.uml
 import org.omg.oti.uml.read.api.{UMLElement, UML}
 import org.omg.oti.uml.xmi.IDGenerator
 
-import scala.collection.immutable.Iterable
+import scala.collection.immutable.{Iterable,Set}
 import scala.{Option,None}
 import scala.Predef.String
 import scalaz._, Scalaz._
@@ -65,7 +65,7 @@ package object canonicalXMI {
   (message: String,
    cause: java.lang.Throwable)
   : java.lang.Throwable =
-    new CatalogURIMapperException(message, cause.wrapNel.some)
+    new CatalogURIMapperException(message, Set(cause).some)
 
   def resolvedDocumentSetException[Uml <: UML]
   (rds: ResolvedDocumentSet[Uml],
@@ -79,7 +79,7 @@ package object canonicalXMI {
    message: String,
    cause: java.lang.Throwable)
   : java.lang.Throwable =
-    new ResolvedDocumentSetException(rds, message, cause.wrapNel.some)
+    new ResolvedDocumentSetException(rds, message, Set(cause).some)
 
   def documentIDGeneratorException[Uml <: UML]
   (idGenerator: IDGenerator[Uml],
@@ -95,7 +95,23 @@ package object canonicalXMI {
    message: String,
    cause: java.lang.Throwable)
   : java.lang.Throwable =
-    new UMLError.IDGeneratorException(idGenerator, elements, message, cause.wrapNel.some)
+    new UMLError.IDGeneratorException(idGenerator, elements, message, Set(cause).some)
+
+  def documentUUIDGeneratorException[Uml <: UML]
+  (idGenerator: IDGenerator[Uml],
+   elements: Iterable[UMLElement[Uml]],
+   message: String,
+   cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
+  : java.lang.Throwable =
+    new UMLError.UUIDGeneratorException(idGenerator, elements, message, cause)
+
+  def documentUUIDGeneratorException[Uml <: UML]
+  (idGenerator: IDGenerator[Uml],
+   elements: Iterable[UMLElement[Uml]],
+   message: String,
+   cause: java.lang.Throwable)
+  : java.lang.Throwable =
+    new UMLError.UUIDGeneratorException(idGenerator, elements, message, Set(cause).some)
 
   def documentOpsException[Uml <: UML]
   ( dOps: DocumentOps[Uml],
@@ -109,6 +125,6 @@ package object canonicalXMI {
     message: String,
     cause: java.lang.Throwable)
   : java.lang.Throwable =
-    new DocumentOpsException(dOps, message, cause.wrapNel.some)
+    new DocumentOpsException(dOps, message, Set(cause).some)
 
 }

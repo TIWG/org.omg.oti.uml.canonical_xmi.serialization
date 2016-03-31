@@ -147,20 +147,20 @@ trait DocumentSet[Uml <: UML] {
   def asBuiltInMutableDocument
   (d: LoadingMutableDocument[Uml],
    artifactKind: OTIArtifactKind)
-  : NonEmptyList[java.lang.Throwable] \/ (BuiltInMutableDocument[Uml], DocumentSet[Uml])
+  : Set[java.lang.Throwable] \/ (BuiltInMutableDocument[Uml], DocumentSet[Uml])
   
   def freezeBuiltInMutableDocument
   (d: BuiltInMutableDocument[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ (BuiltInImmutableDocument[Uml], DocumentSet[Uml])
+  : Set[java.lang.Throwable] \/ (BuiltInImmutableDocument[Uml], DocumentSet[Uml])
   
   def asSerializableMutableDocument
   (d: LoadingMutableDocument[Uml],
    artifactKind: OTIArtifactKind)
-  : NonEmptyList[java.lang.Throwable] \/ (SerializableMutableDocument[Uml], DocumentSet[Uml])
+  : Set[java.lang.Throwable] \/ (SerializableMutableDocument[Uml], DocumentSet[Uml])
   
   def freezeSerializableMutableDocument
   (d: SerializableMutableDocument[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ (SerializableImmutableDocument[Uml], DocumentSet[Uml])
+  : Set[java.lang.Throwable] \/ (SerializableImmutableDocument[Uml], DocumentSet[Uml])
 
   /*
    * @TODO Consider caching.
@@ -212,9 +212,9 @@ trait DocumentSet[Uml <: UML] {
     */
   def allOwnedElementsExcludingAllDocumentScopes
   (p: UMLPackage[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Set[UMLElement[Uml]] = 
+  : Set[java.lang.Throwable] \/ Set[UMLElement[Uml]] =
     lookupDocumentByExtent(p)
-    .fold[NonEmptyList[java.lang.Throwable] \/ Set[UMLElement[Uml]]]{
+    .fold[Set[java.lang.Throwable] \/ Set[UMLElement[Uml]]]{
       
     val nestedExtent = p.allOwnedElements - p
     val nestedDocumentScopes: Set[UMLPackage[Uml]] = nestedExtent.flatMap {
@@ -229,7 +229,7 @@ trait DocumentSet[Uml <: UML] {
     \/-(Set[UMLElement[Uml]](p) ++ restrictedExtent)
   }{ d =>
     -\/(
-      NonEmptyList(
+      Set(
           UMLError.umlAdaptationError(
               s"allOwnedElementsExcludingAllDocumentScopes: p=${p.qualifiedName.get} "+
               s"is already within the scope of a document: ${d.info}")))
@@ -314,7 +314,6 @@ trait DocumentSet[Uml <: UML] {
                 : Set[java.lang.Throwable] \&/ Set[RelationTriple[Uml]]
                 = e
                   .forwardRelationTriples()
-                  .leftMap[Set[java.lang.Throwable]](_.list.toSet)
                   .toThese
 
                 val tu_triples
@@ -520,7 +519,7 @@ object DocumentSet {
   def serializeValueSpecificationAsTagValue[Uml <: UML]
   (value: UMLValueSpecification[Uml])
   (implicit idg: IDGenerator[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Option[String] =
+  : Set[java.lang.Throwable] \/ Option[String] =
     value match {
       case l: UMLLiteralBoolean[Uml] =>
         l.value.toString.some.right
@@ -532,7 +531,7 @@ object DocumentSet {
         l.value.right
       case iv: UMLInstanceValue[Uml] =>
         iv.instance
-        .fold[NonEmptyList[java.lang.Throwable] \/ Option[String]](
+        .fold[Set[java.lang.Throwable] \/ Option[String]](
           Option.empty[String].right
         ){ is =>
           is
@@ -540,7 +539,7 @@ object DocumentSet {
             .map(OTI_ID.unwrap(_).some)
         }
       case v =>
-        NonEmptyList(
+        Set(
           UMLError
           .illegalElementError[Uml, UMLValueSpecification[Uml]](
             s"No value=>string serialization support for ${v.xmiType.head} (ID=${v.xmiID})",
@@ -551,7 +550,7 @@ object DocumentSet {
   def isPackageRootOfSpecificationDocument[Uml <: UML]
   (pkg: UMLPackage[Uml])
   (implicit otiCharacteristicsProvider: OTICharacteristicsProvider[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ Boolean =
+  : Set[java.lang.Throwable] \/ Boolean =
   for {
     pkgURI <- pkg.getEffectiveURI
     docURL <- pkg.getDocumentURL()

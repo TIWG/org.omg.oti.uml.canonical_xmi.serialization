@@ -85,7 +85,7 @@ trait DocumentOps[Uml <: UML] {
     */
   def getExternalDocumentURL
   (lurl: Uml#LoadURL)
-  : NonEmptyList[java.lang.Throwable] \/ URI
+  : Set[java.lang.Throwable] \/ URI
 
   /**
     * Open an input stream on the external document to load
@@ -95,13 +95,13 @@ trait DocumentOps[Uml <: UML] {
     */
   def openExternalDocumentStreamForImport
   (lurl: Uml#LoadURL)
-  : NonEmptyList[java.lang.Throwable] \/ InputStream
+  : Set[java.lang.Throwable] \/ InputStream
 
   /**
     * Add a set of Documents to a DocumentSet
     *
     * Note that for performance reasons, the return type is `Set[Throwable] \&/ DocumentSet[Uml]` (fast merge)
-    * rather than the `NonEmptyList[Throwable] \&/ DocumentSet[Uml]` (slow merge).
+    * rather than the `Set[Throwable] \&/ DocumentSet[Uml]` (slow merge).
     *
     * @param ds DocumentSet
     * @param d a set of Documents
@@ -109,7 +109,7 @@ trait DocumentOps[Uml <: UML] {
     */
   def addDocuments
   (ds: DocumentSet[Uml],
-   d: Set[Document[Uml]])
+   d: Set[_ <: Document[Uml]])
   : Set[java.lang.Throwable] \&/ DocumentSet[Uml] = {
 
     val r0: Set[java.lang.Throwable] \&/ DocumentSet[Uml] = \&/.That(ds)
@@ -119,20 +119,19 @@ trait DocumentOps[Uml <: UML] {
       : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
       = acc.flatMap { dsi =>
         val added1
-        : NonEmptyList[java.lang.Throwable] \/ DocumentSet[Uml]
+        : Set[java.lang.Throwable] \/ DocumentSet[Uml]
         = addDocument(dsi, di)
 
         val added2
         : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
         = added1
           .fold[Set[java.lang.Throwable] \&/ DocumentSet[Uml]](
-          l = (a: NonEmptyList[java.lang.Throwable]) => {
+          l = (a: Set[java.lang.Throwable]) => {
             val next
             : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
             = acc.bimap[Set[java.lang.Throwable], DocumentSet[Uml]](
-              f = (ness: Set[java.lang.Throwable]) => {
-                val added_ness: Set[java.lang.Throwable] = ness ++ a.list
-                added_ness
+              f = (as: Set[java.lang.Throwable]) => {
+                as ++ a
               },
               g = identity
             )
@@ -168,22 +167,22 @@ trait DocumentOps[Uml <: UML] {
   def addDocument
   (ds: DocumentSet[Uml],
    d: Document[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ DocumentSet[Uml]
+  : Set[java.lang.Throwable] \/ DocumentSet[Uml]
 
   def freezeMutableDocument
   (ds: DocumentSet[Uml],
    d: MutableDocument[Uml])
-  : NonEmptyList[java.lang.Throwable] \/ (Document[Uml], DocumentSet[Uml]) =
+  : Set[java.lang.Throwable] \/ (Document[Uml], DocumentSet[Uml]) =
     d match {
     case mD: BuiltInMutableDocument[Uml] =>
       if (!ds.builtInMutableDocuments.contains(mD))
-        -\/(NonEmptyList(UMLError.umlAdaptationError(
+        -\/(Set(UMLError.umlAdaptationError(
             s"freezeMutableDocument: mutable document, ${mD.info} is not in the document set!")))
       else 
         ds.freezeBuiltInMutableDocument(mD)
     case mD: SerializableMutableDocument[Uml] =>
       if (!ds.serializableMutableDocuments.contains(mD))
-        -\/(NonEmptyList(UMLError.umlAdaptationError(
+        -\/(Set(UMLError.umlAdaptationError(
             s"freezeMutableDocument: mutable document, ${mD.info} is not in the document set!")))
       else 
         ds.freezeSerializableMutableDocument(mD)
@@ -209,7 +208,7 @@ trait DocumentOps[Uml <: UML] {
     documentURL: Uml#LoadURL,
     root: UMLPackage[Uml],
     builtInExtent: Set[UMLElement[Uml]] )
-  : NonEmptyList[java.lang.Throwable] \/ ( BuiltInImmutableDocument[Uml], DocumentSet[Uml] )
+  : Set[java.lang.Throwable] \/ ( BuiltInImmutableDocument[Uml], DocumentSet[Uml] )
 
   /**
     * Create a BuiltInImmutableDocument for a root package scope whose contents are fully known.
@@ -230,7 +229,7 @@ trait DocumentOps[Uml <: UML] {
     info: OTISpecificationRootCharacteristics,
     documentURL: Uml#LoadURL,
     root: UMLPackage[Uml] )
-  : NonEmptyList[java.lang.Throwable] \/ ( BuiltInMutableDocument[Uml], DocumentSet[Uml] )
+  : Set[java.lang.Throwable] \/ ( BuiltInMutableDocument[Uml], DocumentSet[Uml] )
 
   /**
     * Create a LoadingMutableDocument for a root package scope whose contents are subject to change
@@ -249,7 +248,7 @@ trait DocumentOps[Uml <: UML] {
     info: OTISpecificationRootCharacteristics,
     documentURL: Uml#LoadURL,
     root: UMLPackage[Uml] )
-  : NonEmptyList[java.lang.Throwable] \/ ( LoadingMutableDocument[Uml], DocumentSet[Uml] )
+  : Set[java.lang.Throwable] \/ ( LoadingMutableDocument[Uml], DocumentSet[Uml] )
   
   /**
     * Create a SerializableImmutableDocument for an existing root package whose contents are fully known
@@ -269,7 +268,7 @@ trait DocumentOps[Uml <: UML] {
     info: OTISpecificationRootCharacteristics,
     documentURL: Uml#LoadURL,
     root: UMLPackage[Uml] )
-  : NonEmptyList[java.lang.Throwable] \/ ( SerializableImmutableDocument[Uml], DocumentSet[Uml] )
+  : Set[java.lang.Throwable] \/ ( SerializableImmutableDocument[Uml], DocumentSet[Uml] )
 
   /**
     * Create a SerializableMutableDocument for a root package scope whose contents are subject to change
@@ -288,7 +287,7 @@ trait DocumentOps[Uml <: UML] {
     info: OTISpecificationRootCharacteristics,
     documentURL: Uml#LoadURL,
     root: UMLPackage[Uml] )
-  : NonEmptyList[java.lang.Throwable] \/ ( SerializableMutableDocument[Uml], DocumentSet[Uml] )
+  : Set[java.lang.Throwable] \/ ( SerializableMutableDocument[Uml], DocumentSet[Uml] )
 
   /**
     * Create a DocumentSet graph for document nodes (serializable or built-in) and inter-document edges
@@ -313,7 +312,7 @@ trait DocumentOps[Uml <: UML] {
     ops: UMLOps[Uml],
     nodeT: TypeTag[Document[Uml]],
     edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
-  : NonEmptyList[java.lang.Throwable] \&/ DocumentSet[Uml]
+  : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
 
   /**
    * Create an initial DocumentSet graph with built-in document nodes/edges for OMG UML 2.5
@@ -332,6 +331,6 @@ trait DocumentOps[Uml <: UML] {
   ( implicit
     nodeT: TypeTag[Document[Uml]],
     edgeT: TypeTag[DocumentEdge[Document[Uml]]] )
-  : NonEmptyList[java.lang.Throwable] \&/ DocumentSet[Uml]
+  : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
 
 }
