@@ -6,5 +6,6 @@ Bundle-Version: 0.19.0.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-1.7
 Export-Package: org.omg.oti.uml.canonicalXMI
 Bundle-ClassPath: .
-Require-Bundle: org.omg.oti;bundle-version="0.19.0";visibility:=reexport
+Require-Bundle: org.omg.oti;bundle-version="0.19.0";visibility:=reexport,
+ org.apache.commons.codec;bundle-version="1.6.0";visibility:=reexport
 Bundle-ActivationPolicy: lazy
