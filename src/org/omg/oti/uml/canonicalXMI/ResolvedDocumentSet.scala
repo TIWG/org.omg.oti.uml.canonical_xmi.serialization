@@ -696,8 +696,17 @@ case class ResolvedDocumentSet[Uml <: UML]
 
     def foldAttribute
     (next: Set[java.lang.Throwable] \/ scala.xml.MetaData, f: e.MetaAttributeFunction)
-    : Set[java.lang.Throwable] \/ scala.xml.MetaData =
-      (next, f.evaluate(e, idg, idg.otiCharacteristicsProvider)) match {
+    : Set[java.lang.Throwable] \/ scala.xml.MetaData 
+    = {
+      val value = f match {
+        case e.id_metaDocumentAttributeFunction =>
+          e.xmiID().map { id => Iterable(Tag.unwrap(id)) }
+        case e.uuid_metaDocumentAttributeFunction =>
+          e.xmiUUID().map { uuid => Iterable(Tag.unwrap(uuid)) }
+        case _ =>
+          f.evaluate(e, idg.otiCharacteristicsProvider)
+      }
+      (next, value) match {
         case (-\/(t), _) =>
           t.left
         case (_, -\/(t)) =>
@@ -714,11 +723,12 @@ case class ResolvedDocumentSet[Uml <: UML]
               }
           }.right
       }
-
+    }
+    
     def foldAttributeNode
     (nodes: Set[java.lang.Throwable] \/ NodeSeq, f: e.MetaAttributeFunction)
     : Set[java.lang.Throwable] \/ NodeSeq =
-      (nodes, f.evaluate(e, idg, idg.otiCharacteristicsProvider)) match {
+      (nodes, f.evaluate(e, idg.otiCharacteristicsProvider)) match {
         case (-\/(t), _) =>
           t.left
         case (_, -\/(t)) =>
