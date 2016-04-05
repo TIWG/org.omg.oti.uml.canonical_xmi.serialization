@@ -762,19 +762,21 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         })
     }
 
-  def checkIDs(): Boolean = {
+  def checkIDs()
+  : Set[java.lang.Throwable] \/ Unit
+  = {
     val id2Element = scala.collection.mutable.HashMap[String @@ OTI_ID, UMLElement[Uml]]()
     var res: Boolean = true
     var duplicates: Integer = 0
     var failed: Integer = 0
     println("\n>>> IDs Checking...")
 
-    val res0: Boolean = true
-    val resN: Boolean = ( res0 /: getElement2IDMap ) {
+    val res0: Set[java.lang.Throwable] \/ Unit = \/-(())
+    val resN: Set[java.lang.Throwable] \/ Unit = ( res0 /: getElement2IDMap ) {
       case ( resi, (ei, maybeId)) =>
-      resi &&
+      resi +++
       maybeId
-      .fold[Boolean](
+      .fold[Set[java.lang.Throwable] \/ Unit](
         (errors: Set[java.lang.Throwable]) => {
           failed = failed + 1
           println(s"***ID computation failed for ${ei.toWrappedObjectString}")
@@ -782,25 +784,28 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
             error <- errors
           } println("\tCause: " + error.getMessage)
           println("---------------------------")
-          false
+          -\/(errors)
         },
 
         (id: String @@ OTI_ID) => {
             id2Element
             .get(id)
-            .fold[Boolean]({
+            .fold[Set[java.lang.Throwable] \/ Unit]({
               id2Element.update(id, ei)
-              true
+              \/-(())
             }){ e =>
               if (e == ei)
-                true
+                \/-(())
               else {
                 duplicates = duplicates + 1
-                println(s"*** Duplicate ID: $id")
-                println(s"\t-> ${ei.toWrappedObjectString}")
-                println(s"\t-> ${e.toWrappedObjectString}")
+                val message = 
+                  s"*** Duplicate ID: $id\n" +
+                  s"\t-> ${ei.toWrappedObjectString}\n"
+                  s"\t-> ${e.toWrappedObjectString}"
                 println("---------------------------")
-                false
+                println(message)
+                println("---------------------------")
+                -\/(Set(UMLError.umlAdaptationError(message)))
               }
             }
         }
