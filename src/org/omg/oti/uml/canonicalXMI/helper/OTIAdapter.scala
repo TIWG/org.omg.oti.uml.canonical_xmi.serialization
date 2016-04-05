@@ -38,7 +38,6 @@
  */
 package org.omg.oti.uml.canonicalXMI.helper
 
-import org.omg.oti.uml._
 import org.omg.oti.uml.canonicalXMI._
 import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
 import org.omg.oti.uml.read.api.UML

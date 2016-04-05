@@ -46,7 +46,7 @@ import org.omg.oti.uml.write.api.{UMLFactory, UMLUpdate}
 import org.omg.oti.uml.xmi._
 
 import scala.collection.immutable._
-import scalaz._, Scalaz._
+import scalaz._
 
 case class OTIResolvedDocumentSetAdapter
 [Uml <: UML,
