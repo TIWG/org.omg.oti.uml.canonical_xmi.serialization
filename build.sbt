@@ -139,7 +139,7 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
     organizationHomepage := Some(url("http://solitaire.omg.org/browse/TIWG")),
 
     scalaSource in Compile :=
-      baseDirectory.value / "svn" / "org.omg.oti.uml.canonicalXMI" / "src",
+      baseDirectory.value / "svn" / "src",
 
     extractArchives := {},
 
@@ -203,7 +203,7 @@ def dynamicScriptsResourceSettings(dynamicScriptsProjectName: Option[String] = N
       packageSrc in Test,
       packageDoc in Test) map {
       (base, bin, src, doc, binT, srcT, docT) =>
-        val dir = base / "svn" / "org.omg.oti"
+        val dir = base / "svn"
           (dir ** "*.md").pair(relativeTo(dir)) ++
           addIfExists(bin, "lib/" + bin.name) ++
           addIfExists(binT, "lib/" + binT.name) ++
