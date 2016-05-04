@@ -44,7 +44,7 @@ import java.net.URL
 import org.apache.commons.codec.binary.Hex
 import org.apache.commons.codec.digest.DigestUtils
 
-import org.omg.oti.uml.OTIPrimitiveTypes._
+import org.omg.oti.json.common.OTIPrimitiveTypes._
 import org.omg.oti.uml.UMLError
 import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
 import org.omg.oti.uml.read.api._
@@ -196,18 +196,10 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         case db2: Document[Uml] with BuiltInDocument =>
           require(d1 != db2)
           // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
-          val bid = for {
-            builtIn_d2_id <- to.toolSpecific_id.fold[Set[java.lang.Throwable] \/ String] {
-              -\/(
-                Set(
-                  documentUUIDGeneratorException(
-                    this,
-                    Iterable(from, to),
-                    s"getXMI_IDREF_or_HREF_fragment_internal: error: There should be a tool-specific xmi:id for the 'to' element in $db2")))
-            }{ id =>
-              \/-(OTI_ID.unwrap(id))
-            }
 
+          val builtIn_d2_id = TOOL_SPECIFIC_ID.unwrap(to.toolSpecific_id)
+
+          val bid = for {
             builtInURI <- documentOps.getExternalDocumentURL(db2.documentURL)
 
             builtInURITo =
@@ -260,18 +252,8 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           .left
         }{
           case d: Document[Uml] with BuiltInDocument =>
-            self
-            .toolSpecific_id
-            .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)] {
-              Set(
-                documentUUIDGeneratorException(
-                  this,
-                  Iterable(self),
-                  "getXMI_ID error: Element from a BuiltInDocument without xmi:id"))
-              .left
-            }{ id =>
-              id.right
-            }
+            OTI_ID(
+              TOOL_SPECIFIC_ID.unwrap(self.toolSpecific_id)).right
 
           case d: Document[Uml] with SerializableDocument =>
             self
@@ -333,7 +315,7 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                   "getXMI_UUID error: Element from a BuiltInDocument without xmi:uuid"))
                 .left
             }{ uuid =>
-              uuid.right
+              OTI_UUID(TOOL_SPECIFIC_UUID.unwrap(uuid)).right
             }
 
           case d: Document[Uml] with SerializableDocument =>

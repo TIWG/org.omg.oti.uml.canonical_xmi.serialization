@@ -38,8 +38,9 @@
  */
 package org.omg.oti.uml.canonicalXMI
 
+import org.omg.oti.json.common.OTISpecificationRootCharacteristics
 import org.omg.oti.uml.UMLError
-import org.omg.oti.uml.characteristics.{OTISpecificationRootCharacteristics, OTICharacteristicsProvider}
+import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
 import org.omg.oti.uml.xmi._
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations._

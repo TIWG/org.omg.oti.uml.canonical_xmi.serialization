@@ -41,7 +41,8 @@ package org.omg.oti.uml.canonicalXMI
 import java.io.{BufferedWriter,FileWriter,PrintWriter,Serializable}
 import java.lang.{IllegalArgumentException,System}
 
-import org.omg.oti.uml.OTIPrimitiveTypes._
+import org.omg.oti.json.common._
+import org.omg.oti.json.common.OTIPrimitiveTypes._
 import org.omg.oti.uml._
 import org.omg.oti.uml.characteristics._
 import org.omg.oti.uml.read.api._

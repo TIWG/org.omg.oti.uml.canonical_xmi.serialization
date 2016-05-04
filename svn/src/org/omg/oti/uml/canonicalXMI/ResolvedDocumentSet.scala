@@ -41,8 +41,8 @@ package org.omg.oti.uml.canonicalXMI
 import java.io.{FileOutputStream, OutputStreamWriter, PrintWriter}
 import java.lang.IllegalArgumentException
 
+import org.omg.oti.json.common.OTIPrimitiveTypes._
 import org.omg.oti.uml._
-import org.omg.oti.uml.OTIPrimitiveTypes._
 import org.omg.oti.uml.read.UMLStereotypeTagValue
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.xmi._
@@ -144,9 +144,8 @@ case class ResolvedDocumentSet[Uml <: UML]
                                   Iterable(s)))))
                       }
                       .apply({
-                        val sToolID = s.toolSpecific_id
-                        require(sToolID.isDefined)
-                        val builtInURI = url.resolve("#" + sToolID.get).toString
+                        val sToolID = TOOL_SPECIFIC_ID.unwrap(s.toolSpecific_id)
+                        val builtInURI = url.resolve("#" + sToolID).toString
                         ds.builtInURIMapper.resolve(builtInURI)
                           .map { oresolved =>
                             val mappedURI = oresolved.getOrElse(builtInURI)
@@ -451,8 +450,8 @@ case class ResolvedDocumentSet[Uml <: UML]
                           val tagValueAttributeN = (tagValueAttribute0 /: vs) (foldTagValues(xmiScopes, idg))
                           tagValueAttributeN
                         }
-                      val stAppID = IDGenerator.computeStereotypeApplicationID(eID, sID)
-                      val stAppUUID = IDGenerator.computeStereotypeApplicationUUID(eUUID, sUUID)
+                      val stAppID = IDGenerator.computeStereotypeApplicationOTI_ID(eID, sID)
+                      val stAppUUID = IDGenerator.computeStereotypeApplicationOTI_UUID(eUUID, sUUID)
                       val xmiTagValueAttributes =
                         new scala.xml.PrefixedAttribute(
                           pre = "xmi", key = "id", value = OTI_ID.unwrap(stAppID),
@@ -775,9 +774,8 @@ case class ResolvedDocumentSet[Uml <: UML]
                       .flatMap { dURI =>
                         val oti_href = dURI.toString + "#" + eRefID
                         
-                        val eRefToolID = eRef.toolSpecific_id
-                        require(eRefToolID.isDefined)                        
-                        val tool_href = dURI.toString + "#" + eRefToolID.get
+                        val eRefToolID = TOOL_SPECIFIC_ID.unwrap(eRef.toolSpecific_id)
+                        val tool_href = dURI.toString + "#" + eRefToolID
                         
                         val externalHRef
                         : Set[java.lang.Throwable] \/ String
@@ -811,11 +809,11 @@ case class ResolvedDocumentSet[Uml <: UML]
           case cf: e.MetaCollectionEvaluator =>
             cf
               .evaluate(e)
-              .flatMap { eRefs: List[UMLElement[Uml]] =>
+              .flatMap { eRefs: Vector[UMLElement[Uml]] =>
                 if (eRefs.isEmpty)
                   ns.right
                 else {
-                  val ordered_eRefs: List[UMLElement[Uml]] =
+                  val ordered_eRefs: Vector[UMLElement[Uml]] =
                     if (cf.isOrdered)
                       eRefs
                     else
@@ -841,9 +839,8 @@ case class ResolvedDocumentSet[Uml <: UML]
                               } else {
                                 val oti_href = dRef.documentURL.toString + "#" + eRefID
                                 
-                                val eRefToolID = eRef.toolSpecific_id
-                                require(eRefToolID.isDefined)                        
-                                val tool_href = dRef.documentURL.toString + "#" + eRefToolID.get
+                                val eRefToolID = TOOL_SPECIFIC_ID.unwrap(eRef.toolSpecific_id)
+                                val tool_href = dRef.documentURL.toString + "#" + eRefToolID
                         
                                 val externalHRef: Set[java.lang.Throwable] \/ String =
                                   dRef match {
@@ -920,7 +917,7 @@ case class ResolvedDocumentSet[Uml <: UML]
 
     def prependNestedElementsOrIdReferences
     (f: e.MetaPropertyEvaluator,
-     subs: List[UMLElement[Uml]],
+     subs: Vector[UMLElement[Uml]],
      subElements: Set[UMLElement[Uml]],
      nodes: NodeSeq,
      redefined: MetaPropertyFunctionSet)
