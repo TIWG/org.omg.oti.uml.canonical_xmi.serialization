@@ -1,5 +1,5 @@
 object Versions_oti_uml_core {
 
   // https://github.jpl.nasa.gov/imce/org.omg.oti.uml.core
-  val version="2.0.1"
+  val version="2.0.2"
 }
