@@ -38,10 +38,11 @@
  */
 package org.omg.oti.uml.canonicalXMI.helper
 
+import org.omg.oti.json.common.OTISpecificationRootCharacteristics
 import org.omg.oti.uml.RelationTriple
 import org.omg.oti.uml.canonicalXMI.{DocumentOps, DocumentSet}
 import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
-import org.omg.oti.uml.read.api.{UML, UMLElement}
+import org.omg.oti.uml.read.api.{UML, UMLElement, UMLPackage}
 import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.write.api.{UMLFactory, UMLUpdate}
 import org.omg.oti.uml.xmi.Document
@@ -62,6 +63,27 @@ case class OTIDocumentSetAdapter
  documentOps: Do,
  ds: Ds) {
 
+  def getSpecificationRootCharacteristics
+  (self: UMLPackage[Uml])
+  : Set[java.lang.Throwable] \/ Option[OTISpecificationRootCharacteristics]
+  = {
+    val result
+    : Set[java.lang.Throwable] \/ Option[OTISpecificationRootCharacteristics]
+    = otiAdapter.otiCharacteristicsProvider.getSpecificationRootCharacteristics(self)
+
+    result.map { oc =>
+      oc orElse
+        ds.lookupDocumentByScope(self)
+          .map(_.info)
+    }
+  }
+
+  def addDocuments[D <: Document[Uml]]
+  (documents: Set[D])
+  : Set[java.lang.Throwable] \&/ DocumentSet[Uml]
+  = documentOps
+    .addDocuments(ds, documents.filter(d => !ds.allDocuments.map(_.scope).contains(d.scope)))
+
   def resolve
   (ignoreCrossReferencedElementFilter: UMLElement[Uml] => Boolean,
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
@@ -70,7 +92,7 @@ case class OTIDocumentSetAdapter
   = ds
     .resolve(ignoreCrossReferencedElementFilter, unresolvedElementMapper, includeAllForwardRelationTriple)
     .map { case (rds, unresolved) =>
-      OTIResolvedDocumentSetAdapter(otiAdapter, documentOps, rds, unresolved.to[Set])
+      OTIResolvedDocumentSetAdapter(otiAdapter, documentOps, rds, unresolved)
     }
 
 }

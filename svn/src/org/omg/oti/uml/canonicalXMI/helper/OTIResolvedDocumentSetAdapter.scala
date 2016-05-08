@@ -59,7 +59,7 @@ case class OTIResolvedDocumentSetAdapter
 (otiAdapter: OTIAdapter[Uml, Uo, Ch, Uf, Uu],
  documentOps: Do,
  rds: ResolvedDocumentSet[Uml],
- unresolvedElementCrossReferences: Set[UnresolvedElementCrossReference[Uml]]) {
+ unresolvedElementCrossReferences: Vector[UnresolvedElementCrossReference[Uml]]) {
 
   def withIDGenerator[Ig <: IDGenerator[Uml]]
   (generatorCreator: DocumentSet[Uml] => Set[java.lang.Throwable] \/ Ig)

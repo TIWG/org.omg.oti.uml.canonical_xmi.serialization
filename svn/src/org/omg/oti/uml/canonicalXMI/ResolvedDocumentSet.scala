@@ -85,35 +85,78 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   implicit val dOps = ds.documentOps
 
-  def isElementMapped2Document(e: UMLElement[Uml]): Boolean =
-    element2mappedDocument(e).isDefined
+  def isElementMapped2Document
+  (e: UMLElement[Uml])
+  : Boolean
+  = element2mappedDocument(e).isDefined
 
-  def element2mappedDocument(e: UMLElement[Uml]): Option[Document[Uml]] = {
-    val d
-    : Option[Document[Uml]]
-    = ds.lookupDocumentByExtent(e)
-    d
-  }
+  def element2mappedDocument
+  (e: UMLElement[Uml]): Option[Document[Uml]]
+  = ds.lookupDocumentByExtent(e)
 
   def getStereotype_ID_UUID
   (s: UMLStereotype[Uml])
   (implicit idg: IDGenerator[Uml]) 
-  : Set[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID) = {
+  : Set[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID)
+  = s
+    .xmiID()
+    .flatMap { _id =>
 
-    val result
-    : Set[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID)
-    = s
-      .xmiID()
-      .flatMap { _id =>
+      val id_uuid
+      : Set[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID)
+      = s
+        .xmiUUID()
+        .flatMap { _uuid =>
 
-        val id_uuid
-        : Set[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID)
-        = s
-          .xmiUUID()
-          .flatMap { _uuid =>
+          element2mappedDocument(s)
+            .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID)](
+            -\/(
+              Set(
+                resolvedDocumentSetException(
+                  this,
+                  "getStereotype_ID_UUID failed",
+                  UMLError
+                    .illegalElementError[Uml, UMLStereotype[Uml]](
+                    s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
+                    Iterable(s)))))
+          ) {
+            case d: Document[Uml] with BuiltInDocument =>
+              dOps
+                .getExternalDocumentURL(d.documentURL)
+                .flatMap { url =>
+                  catching(
+                    classOf[java.lang.NullPointerException],
+                    classOf[java.lang.IllegalArgumentException])
+                    .withApply {
+                      (cause: java.lang.Throwable) =>
+                        -\/(
+                          Set(
+                            resolvedDocumentSetException(
+                              this,
+                              "getStereotype_ID_UUID failed",
+                              UMLError
+                                .illegalElementError[Uml, UMLStereotype[Uml]](
+                                s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
+                                Iterable(s)))))
+                    }
+                    .apply({
+                      val sToolID = s.toolSpecific_id
+                      val builtInURI = url.resolve("#" + sToolID).toString
+                      ds.builtInURIMapper.resolve(builtInURI)
+                        .map { oresolved =>
+                          val mappedURI = oresolved.getOrElse(builtInURI)
+                          val fragmentIndex = mappedURI.lastIndexOf('#')
+                          require(fragmentIndex > 0)
+                          val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
+                          Tuple2(OTI_ID(fragment), OTI_UUID(OTI_NS_PREFIX.unwrap(d.info.nsPrefix) + fragment))
+                        }
+                    })
+                }
 
-            element2mappedDocument(s)
-              .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID, String @@ OTI_UUID)](
+            case d: Document[Uml] with SerializableDocument =>
+              \/-(Tuple2(_id, _uuid))
+
+            case d: Document[Uml] =>
               -\/(
                 Set(
                   resolvedDocumentSetException(
@@ -121,68 +164,19 @@ case class ResolvedDocumentSet[Uml <: UML]
                     "getStereotype_ID_UUID failed",
                     UMLError
                       .illegalElementError[Uml, UMLStereotype[Uml]](
-                      s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
+                      s"Unrecognized document $d for stereotype ${s.qualifiedName.get} (ID=${_id})",
                       Iterable(s)))))
-            ) {
-              case d: Document[Uml] with BuiltInDocument =>
-                dOps
-                  .getExternalDocumentURL(d.documentURL)
-                  .flatMap { url =>
-                    catching(
-                      classOf[java.lang.NullPointerException],
-                      classOf[java.lang.IllegalArgumentException])
-                      .withApply {
-                        (cause: java.lang.Throwable) =>
-                          -\/(
-                            Set(
-                              resolvedDocumentSetException(
-                                this,
-                                "getStereotype_ID_UUID failed",
-                                UMLError
-                                  .illegalElementError[Uml, UMLStereotype[Uml]](
-                                  s"There should be a document for stereotype ${s.qualifiedName.get} (ID=${_id})",
-                                  Iterable(s)))))
-                      }
-                      .apply({
-                        val sToolID = TOOL_SPECIFIC_ID.unwrap(s.toolSpecific_id)
-                        val builtInURI = url.resolve("#" + sToolID).toString
-                        ds.builtInURIMapper.resolve(builtInURI)
-                          .map { oresolved =>
-                            val mappedURI = oresolved.getOrElse(builtInURI)
-                            val fragmentIndex = mappedURI.lastIndexOf('#')
-                            require(fragmentIndex > 0)
-                            val fragment = IDGenerator.xmlSafeID(mappedURI.substring(fragmentIndex + 1))
-                            Tuple2(OTI_ID(fragment), OTI_UUID(OTI_NS_PREFIX.unwrap(d.info.nsPrefix) + fragment))
-                          }
-                      })
-                  }
-
-              case d: Document[Uml] with SerializableDocument =>
-                \/-(Tuple2(_id, _uuid))
-
-              case d: Document[Uml] =>
-                -\/(
-                  Set(
-                    resolvedDocumentSetException(
-                      this,
-                      "getStereotype_ID_UUID failed",
-                      UMLError
-                        .illegalElementError[Uml, UMLStereotype[Uml]](
-                        s"Unrecognized document $d for stereotype ${s.qualifiedName.get} (ID=${_id})",
-                        Iterable(s)))))
-            }
           }
+        }
 
-        id_uuid
-      }
-
-    result
-  }
+      id_uuid
+    }
 
   def serialize
   ()
   (implicit idg: IDGenerator[Uml])
-  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = {
+  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)]
+  = {
 
     val s0: Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = Set().right
     val sN: Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = (s0 /: g.nodes) {
@@ -200,8 +194,8 @@ case class ResolvedDocumentSet[Uml <: UML]
   def serializePkg
   (pkg: UMLPackage[Uml])
   (implicit idg: IDGenerator[Uml])
-  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] =
-    ds.lookupDocumentByScope(pkg)
+  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)]
+  = ds.lookupDocumentByScope(pkg)
       .fold[Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)]] {
       Set(
         resolvedDocumentSetException(
@@ -218,16 +212,16 @@ case class ResolvedDocumentSet[Uml <: UML]
 
   protected def foldTagValues
   (xmiScopes: scala.xml.NamespaceBinding, idg: IDGenerator[Uml])
-  (tagValueNodes: Set[java.lang.Throwable] \/ List[scala.xml.Elem],
+  (tagValueNodes: Set[java.lang.Throwable] \/ Vector[scala.xml.Elem],
    stereotypeTagValue: UMLStereotypeTagValue[Uml])
-  : Set[java.lang.Throwable] \/ List[scala.xml.Elem] =
-    tagValueNodes +++ stereotypeTagValue.serialize(xmiScopes, idg).map(_.to[List])
+  : Set[java.lang.Throwable] \/ Vector[scala.xml.Elem]
+  = tagValueNodes +++ stereotypeTagValue.serialize(xmiScopes, idg).map(_.to[Vector])
 
   protected def serialize
   (d: Document[Uml])
   (implicit idg: IDGenerator[Uml])
-  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] =
-    \/.fromTryCatchNonFatal(new java.net.URI(OTI_URI.unwrap(d.info.packageURI)))
+  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)]
+  = \/.fromTryCatchNonFatal(new java.net.URI(OTI_URI.unwrap(d.info.packageURI)))
       .fold[Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)]](
     l = (t: java.lang.Throwable) =>
       -\/(
@@ -272,7 +266,8 @@ case class ResolvedDocumentSet[Uml <: UML]
    d_uuid: String @@ OTI_UUID,
    furi: java.io.File)
   (implicit idg: IDGenerator[Uml])
-  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = {
+  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)]
+  = {
 
     val dir = furi.getParentFile
     dir.mkdirs()
@@ -296,8 +291,9 @@ case class ResolvedDocumentSet[Uml <: UML]
               .flatMap(_.appliedStereotype.profile.filter(isElementMapped2Document))
         }
 
-      val profiles: List[UMLProfile[Uml]] =
-        referencedProfiles.toList.sortBy(_.qualifiedName.get)
+      val profiles
+      : Vector[UMLProfile[Uml]]
+      = referencedProfiles.to[Vector].sortBy(_.qualifiedName.get)
 
       serialize(d, d_id, d_uuid, furi, element2stereotypeTagValues.toMap, profiles)
     }
@@ -309,9 +305,10 @@ case class ResolvedDocumentSet[Uml <: UML]
    d_uuid: String @@ OTI_UUID,
    furi: java.io.File,
    element2stereotypeTagValues: Map[UMLElement[Uml], Seq[UMLStereotypeTagValue[Uml]]],
-   referencedProfiles: List[UMLProfile[Uml]])
+   referencedProfiles: Vector[UMLProfile[Uml]])
   (implicit idg: IDGenerator[Uml])
-  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = {
+  : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)]
+  = {
     import DocumentSet._
     import scala.xml._
 
@@ -342,7 +339,7 @@ case class ResolvedDocumentSet[Uml <: UML]
    d_uuid: String @@ OTI_UUID,
    furi: java.io.File,
    element2stereotypeTagValues: Map[UMLElement[Uml], Seq[UMLStereotypeTagValue[Uml]]],
-   referencedProfiles: List[UMLProfile[Uml]],
+   referencedProfiles: Vector[UMLProfile[Uml]],
    xmiScopes: scala.xml.NamespaceBinding)
   (implicit idg: IDGenerator[Uml])
   : Set[java.lang.Throwable] \/ Set[(Document[Uml], java.io.File)] = {
@@ -397,10 +394,13 @@ case class ResolvedDocumentSet[Uml <: UML]
           minimizeEmpty = true,
           mofTagElement)
 
-        val sTV0: Set[java.lang.Throwable] \/ List[scala.xml.Node] =
-          List[scala.xml.Node]().right
-        val sTVN: Set[java.lang.Throwable] \/ List[scala.xml.Node] =
-          (sTV0 /: elementOrdering.to[List]) { (sTVi, e) =>
+        val sTV0
+        : Set[java.lang.Throwable] \/ Vector[scala.xml.Node]
+        = Vector[scala.xml.Node]().right
+
+        val sTVN
+        : Set[java.lang.Throwable] \/ Vector[scala.xml.Node]
+        = (sTV0 /: elementOrdering.to[Vector]) { (sTVi, e) =>
           e
           .xmiID()
           .flatMap { eID =>
@@ -422,9 +422,10 @@ case class ResolvedDocumentSet[Uml <: UML]
                   tagValues.map(_.appliedStereotype).toSet filter isElementMapped2Document
                 }
 
-              val ordering: List[UMLStereotype[Uml]] =
-                appliedStereotypes
-                  .toList
+              val ordering
+              : Vector[UMLStereotype[Uml]]
+              = appliedStereotypes
+                  .to[Vector]
                   .sortBy(
                     getStereotype_ID_UUID(_)
                     .getOrElse(Tuple2(OTI_ID(""), OTI_UUID(""))) // @todo propagate errors
@@ -432,21 +433,26 @@ case class ResolvedDocumentSet[Uml <: UML]
                   )
 
 
-              val oTVE0: Set[java.lang.Throwable] \/ List[scala.xml.Node] =
-                List[scala.xml.Node]().right
-              val oTVEN: Set[java.lang.Throwable] \/ List[scala.xml.Node] =
-                (oTVE0 /: ordering) { (oTVEi, s) =>
+              val oTVE0
+              : Set[java.lang.Throwable] \/ Vector[scala.xml.Node]
+              = Vector[scala.xml.Node]().right
+
+              val oTVEN
+              : Set[java.lang.Throwable] \/ Vector[scala.xml.Node]
+              = (oTVE0 /: ordering) { (oTVEi, s) =>
                 getStereotype_ID_UUID(s)
                   .flatMap {
                     case (sID, sUUID) =>
-                      val tagValueAttributes: Set[java.lang.Throwable] \/ List[scala.xml.Elem] =
-                        allTagValuesByStereotype
+                      val tagValueAttributes
+                      : Set[java.lang.Throwable] \/ Vector[scala.xml.Elem]
+                      = allTagValuesByStereotype
                           .get(s)
-                          .fold[Set[java.lang.Throwable] \/ List[scala.xml.Elem]](
-                              List[scala.xml.Elem]().right
+                          .fold[Set[java.lang.Throwable] \/ Vector[scala.xml.Elem]](
+                              Vector[scala.xml.Elem]().right
                           ) { vs =>
-                          val tagValueAttribute0: Set[java.lang.Throwable] \/ List[scala.xml.Elem] =
-                            List[scala.xml.Elem]().right
+                          val tagValueAttribute0
+                          : Set[java.lang.Throwable] \/ Vector[scala.xml.Elem]
+                          = Vector[scala.xml.Elem]().right
                           val tagValueAttributeN = (tagValueAttribute0 /: vs) (foldTagValues(xmiScopes, idg))
                           tagValueAttributeN
                         }
@@ -462,7 +468,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                               scala.xml.Null)))
 
                       tagValueAttributes.map { tVAs =>
-                        List(scala.xml.Elem(
+                        Vector(scala.xml.Elem(
                           prefix = s.profile.get.name.get,
                           label = s.name.get,
                           attributes = xmiTagValueAttributes,
@@ -488,7 +494,7 @@ case class ResolvedDocumentSet[Uml <: UML]
               attributes = scala.xml.Null,
               scope = xmiScopes,
               minimizeEmpty = true,
-              top :: mofTag :: stereotypeTagValues: _*)
+              top +: mofTag +: stereotypeTagValues: _*)
 
             val filepath = furi.getPath + ".xmi"
             \/.fromTryCatchNonFatal[java.io.File]({
@@ -528,7 +534,8 @@ case class ResolvedDocumentSet[Uml <: UML]
    subElements: Set[UMLElement[Uml]],
    nodes: Seq[scala.xml.Node],
    redefinitions: MetaPropertyFunctionSet)
-  : Trampoline[Set[java.lang.Throwable] \/ SerializationState] = {
+  : Trampoline[Set[java.lang.Throwable] \/ SerializationState]
+  = {
 
     //    assert( Thread.currentThread().getStackTrace.count( _.getMethodName == "append1Node" ) == 1,
     //      "Verification that the trampolined recursive function 'append1Node' runs stack-free" )
@@ -558,7 +565,8 @@ case class ResolvedDocumentSet[Uml <: UML]
    subElements: Set[UMLElement[Uml]],
    nodes: Seq[scala.xml.Node],
    redefinitions: MetaPropertyFunctionSet)
-  : Trampoline[Set[java.lang.Throwable] \/ SerializationState] = {
+  : Trampoline[Set[java.lang.Throwable] \/ SerializationState]
+  = {
 
     //    assert( Thread.currentThread().getStackTrace.count( _.getMethodName == "append1Node" ) == 1,
     //      "Verification that the trampolined recursive function 'append1Node' runs stack-free" )
@@ -774,7 +782,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                       .flatMap { dURI =>
                         val oti_href = dURI.toString + "#" + eRefID
                         
-                        val eRefToolID = TOOL_SPECIFIC_ID.unwrap(eRef.toolSpecific_id)
+                        val eRefToolID = eRef.toolSpecific_id
                         val tool_href = dURI.toString + "#" + eRefToolID
                         
                         val externalHRef
@@ -839,7 +847,7 @@ case class ResolvedDocumentSet[Uml <: UML]
                               } else {
                                 val oti_href = dRef.documentURL.toString + "#" + eRefID
                                 
-                                val eRefToolID = TOOL_SPECIFIC_ID.unwrap(eRef.toolSpecific_id)
+                                val eRefToolID = eRef.toolSpecific_id
                                 val tool_href = dRef.documentURL.toString + "#" + eRefToolID
                         
                                 val externalHRef: Set[java.lang.Throwable] \/ String =
@@ -958,32 +966,33 @@ case class ResolvedDocumentSet[Uml <: UML]
 
     def applyGenerateNodeElementsOrSkip
     (f: e.MetaPropertyEvaluator,
-     subs: List[UMLElement[Uml]],
+     subs: Vector[UMLElement[Uml]],
      subElements: Set[UMLElement[Uml]],
      nodes: NodeSeq,
      redefined: MetaPropertyFunctionSet)
-    : Trampoline[Set[java.lang.Throwable] \/ SerializationState] =
-      subs match {
-        case Nil =>
-          return_ {
-            \/-((subElements, nodes, redefined))
-          }
-        case x :: xs =>
-          if (subElements.contains(x))
-            return_ {
-              \/-((subElements, nodes, redefined))
-            }
-          else
-            append1Pair(x, callGenerateNodeElement(f, x), subElements, nodes, redefined)
-              .flatMap {
-                case -\/(errors) =>
-                  return_ {
-                    -\/(errors)
-                  }
-                case \/-((es, ns, rs)) =>
-                  applyGenerateNodeElementsOrSkip(f, xs, es, ns, rs)
-              }
+    : Trampoline[Set[java.lang.Throwable] \/ SerializationState]
+    = if (subs.isEmpty)
+      return_ {
+        \/-((subElements, nodes, redefined))
       }
+    else {
+      val x = subs.head
+      val xs = subs.tail
+      if (subElements.contains(x))
+        return_ {
+          \/-((subElements, nodes, redefined))
+        }
+      else
+        append1Pair(x, callGenerateNodeElement(f, x), subElements, nodes, redefined)
+          .flatMap {
+            case -\/(errors) =>
+              return_ {
+                -\/(errors)
+              }
+            case \/-((es, ns, rs)) =>
+              applyGenerateNodeElementsOrSkip(f, xs, es, ns, rs)
+          }
+    }
 
     /*
      * @see XMI2.5 ptc/14-09-21 9.4.1
@@ -1015,7 +1024,8 @@ case class ResolvedDocumentSet[Uml <: UML]
     @tailrec def trampolineSubNode
     (nodes: Trampoline[Set[java.lang.Throwable] \/ SerializationState],
      f: e.MetaPropertyEvaluator)
-    : Trampoline[Set[java.lang.Throwable] \/ SerializationState] = {
+    : Trampoline[Set[java.lang.Throwable] \/ SerializationState]
+    = {
 
       nodes.resume match {
         //        case -\/( s ) =>

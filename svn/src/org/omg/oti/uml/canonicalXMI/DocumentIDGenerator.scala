@@ -193,9 +193,11 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       }{
         case db2: Document[Uml] with BuiltInDocument =>
           require(d1 != db2)
-          // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
           val builtIn_d2_id = TOOL_SPECIFIC_ID.unwrap(to.toolSpecific_id)
+
+          // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
           val bid = for {
+
             builtInURI <- documentOps.getExternalDocumentURL(db2.documentURL)
 
             builtInURITo =
@@ -248,8 +250,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           .left
         }{
           case d: Document[Uml] with BuiltInDocument =>
-            OTI_ID(
-              TOOL_SPECIFIC_ID.unwrap(self.toolSpecific_id)).right
+            OTI_ID.apply(TOOL_SPECIFIC_ID.unwrap(self.toolSpecific_id)).right
 
           case d: Document[Uml] with SerializableDocument =>
             self
@@ -350,7 +351,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                   "getXMI_UUID error: Element from a BuiltInDocument without xmi:uuid"))
                 .left
             }{ uuid =>
-              OTI_UUID(TOOL_SPECIFIC_UUID.unwrap(uuid)).right
+              OTI_UUID.apply(TOOL_SPECIFIC_UUID.unwrap(uuid)).right
             }
 
           case d: Document[Uml] with SerializableDocument =>

@@ -41,8 +41,9 @@ package org.omg.oti.uml.canonicalXMI
 import java.io.{BufferedWriter,FileWriter,PrintWriter,Serializable}
 import java.lang.{IllegalArgumentException,System}
 
-import org.omg.oti.json.common._
+import org.omg.oti.json.common.OTIArtifactKind
 import org.omg.oti.json.common.OTIPrimitiveTypes._
+
 import org.omg.oti.uml._
 import org.omg.oti.uml.characteristics._
 import org.omg.oti.uml.read.api._
@@ -53,7 +54,7 @@ import scala.annotation.tailrec
 import scala.language.{higherKinds,implicitConversions,postfixOps}
 import scala.reflect.runtime.universe
 import scala.reflect.runtime.universe._
-import scala.{Boolean,Either,Function1,Option,Left,None,Right,Product,Some,StringContext}
+import scala.{Boolean,Either,Function1,Int,Option,Left,None,Right,Product,Some,StringContext,Tuple2,Unit}
 import scala.Predef.{Map =>_, Set =>_,_}
 import scala.collection.immutable._
 import scala.collection.Iterable
@@ -80,29 +81,30 @@ class DocumentSetException
  override val cause: UMLError.OptionThrowableNel = UMLError.emptyThrowableNel)
   extends UMLError.UException(message, cause)
 
-class DocumentEdge[N](nodes: Product, val relations: Seq[RelationTriple[_ <: UML]])
+class DocumentEdge[N]
+(nodes: Product, val relations: Vector[RelationTriple[_ <: UML]])
   extends DiEdge[N](nodes)
   with ExtendedKey[N]
   with EdgeCopy[DocumentEdge]
   with OuterEdge[N, DocumentEdge] {
 
-  def keyAttributes = Seq(relations)
+  def keyAttributes = relations
   override def copy[NN](newNodes: Product) = DocumentEdge.newEdge[NN]( newNodes, relations )
   override protected def attributesToString = "(" + relations.size + " triples)"
 }
 
 object DocumentEdge {
 
-  protected def newEdge[N](nodes: Product, relations: Seq[RelationTriple[_ <: UML]]) =
+  protected def newEdge[N](nodes: Product, relations: Vector[RelationTriple[_ <: UML]]) =
     new DocumentEdge[N](nodes, relations)
 
-  def apply[N](e: DiEdge[Product with Serializable with N], relations: Seq[RelationTriple[_ <: UML]]) =
+  def apply[N](e: DiEdge[Product with Serializable with N], relations: Vector[RelationTriple[_ <: UML]]) =
     new DocumentEdge[N](NodeProduct(e.from, e.to), relations)
 
   def unapply(e: DocumentEdge[Document[_ <: UML]]) =
     Some(e)
 
-  def apply[N](from: N, to: N, relations: Seq[RelationTriple[_ <: UML]]): DocumentEdge[N] =
+  def apply[N](from: N, to: N, relations: Vector[RelationTriple[_ <: UML]]): DocumentEdge[N] =
     new DocumentEdge[N](NodeProduct(from, to), relations)
 
 }
@@ -119,20 +121,25 @@ trait DocumentSet[Uml <: UML] {
   val builtInImmutableDocuments: Set[BuiltInImmutableDocument[Uml]]
   val builtInMutableDocuments: Set[BuiltInMutableDocument[Uml]]
   
-  val allImmutableDocuments: Set[ImmutableDocument[Uml]] =
-    serializableImmutableDocuments ++ builtInImmutableDocuments
+  val allImmutableDocuments
+  : Set[ImmutableDocument[Uml]]
+  = serializableImmutableDocuments ++ builtInImmutableDocuments
     
-  val allMutableDocuments: Set[MutableDocument[Uml]] =
-    loadingMutableDocuments ++ serializableMutableDocuments ++ builtInMutableDocuments
+  val allMutableDocuments
+  : Set[MutableDocument[Uml]]
+  = loadingMutableDocuments ++ serializableMutableDocuments ++ builtInMutableDocuments
     
-  val allSerializableDocuments: Set[Document[Uml] with SerializableDocument] =
-    serializableImmutableDocuments ++ serializableMutableDocuments
+  val allSerializableDocuments
+  : Set[Document[Uml] with SerializableDocument]
+  = serializableImmutableDocuments ++ serializableMutableDocuments
     
-  val allBuiltInDocuments: Set[Document[Uml] with BuiltInDocument] =
-    builtInImmutableDocuments ++ builtInMutableDocuments
+  val allBuiltInDocuments
+  : Set[Document[Uml] with BuiltInDocument]
+  = builtInImmutableDocuments ++ builtInMutableDocuments
     
-  val allDocuments: Set[Document[Uml]] =
-    loadingMutableDocuments ++ allSerializableDocuments ++ allBuiltInDocuments
+  val allDocuments
+  : Set[Document[Uml]]
+  = loadingMutableDocuments ++ allSerializableDocuments ++ allBuiltInDocuments
   
   val documentURIMapper: CatalogURIMapper
   val builtInURIMapper: CatalogURIMapper
@@ -163,47 +170,32 @@ trait DocumentSet[Uml <: UML] {
   (d: SerializableMutableDocument[Uml])
   : Set[java.lang.Throwable] \/ (SerializableImmutableDocument[Uml], DocumentSet[Uml])
 
-  /*
-   * @TODO Consider caching.
-   */
-  def lookupDocumentByExtent(e: UMLElement[Uml]): Option[Document[Uml]] = {
-    val od
-    : Option[Document[Uml]]
-    = allDocuments.find { d =>
-      val dScope = d.scope
-      val found1 = dScope == e
-      if (found1)
-        true
-      else {
-        val found2 = d.includes(e)
-        found2
+  private val element2document = scala.collection.mutable.HashMap[UMLElement[Uml], Option[Document[Uml]]]()
+
+  def lookupDocumentByExtent
+  (e: UMLElement[Uml]): Option[Document[Uml]]
+  = this.synchronized {
+    element2document
+      .getOrElseUpdate(
+        e,
+        allDocuments.find { d => d.scope == e || d.includes(e) })
+  }
+
+  def lookupDocumentByScope
+  (e: UMLElement[Uml])
+  : Option[Document[Uml]]
+  = allDocuments.find { d => d.scope == e }
+
+  def computeElement2DocumentMap
+  : Map[UMLElement[Uml], Document[Uml]]
+  = this.synchronized {
+    element2document
+      .flatMap {
+        case (e, Some(d)) => Some(e -> d)
+        case _ => None
       }
-    }
-    od
+      .toMap
   }
-
-  /*
-   * @TODO Consider caching.
-   */
-  def lookupDocumentByScope(e: UMLElement[Uml]): Option[Document[Uml]] = {
-    val od
-    : Option[Document[Uml]]
-    = allDocuments.find(d => d.scope == e)
-    od
-  }
-
-  /*
-   * @TODO Consider caching.
-   */
-  def computeElement2DocumentMap: Map[UMLElement[Uml], Document[Uml]] = {
-
-    val element2document
-    : Set[(UMLElement[Uml], Document[Uml])]
-    = allDocuments.flatMap { d => d.extent.map(_ -> d).toMap }
-
-    element2document.toMap
-  }
-
 
   /**
     * All owned elements of a package excluding the extent of any nested Document scope package
@@ -213,8 +205,8 @@ trait DocumentSet[Uml <: UML] {
     */
   def allOwnedElementsExcludingAllDocumentScopes
   (p: UMLPackage[Uml])
-  : Set[java.lang.Throwable] \/ Set[UMLElement[Uml]] =
-    lookupDocumentByExtent(p)
+  : Set[java.lang.Throwable] \/ Set[UMLElement[Uml]]
+  = lookupDocumentByExtent(p)
     .fold[Set[java.lang.Throwable] \/ Set[UMLElement[Uml]]]{
       
     val nestedExtent = p.allOwnedElements - p
@@ -270,123 +262,178 @@ trait DocumentSet[Uml <: UML] {
    includeAllForwardRelationTriple: (Document[Uml], RelationTriple[Uml], Document[Uml]) => Boolean =
      DocumentSet.includeAllForwardRelationTriple[Uml])
   : Set[java.lang.Throwable] \&/
-    (ResolvedDocumentSet[Uml], scala.collection.immutable.Iterable[UnresolvedElementCrossReference[Uml]]) = {
+    (ResolvedDocumentSet[Uml], Vector[UnresolvedElementCrossReference[Uml]])
+  = this.synchronized {
 
     val g = mGraphFactory.empty()
 
+    System.out.println(s"# Begin scanning ${allDocuments.size} documents...")
+    var remaining: scala.Int = allDocuments.size
+
+    var time: scala.Long = java.lang.System.currentTimeMillis()
+
+    val documentSize = scala.collection.mutable.HashMap[Document[Uml], Int]()
+    var count: Int = 0
+    var tcount: Int = 0
     // add each document as a node in the graph
-    allDocuments foreach { d => g += d }
+    allDocuments foreach { d =>
+      g += d
+      val prev = count
+      d.extent.foreach { e =>
+        element2document += e -> Some(d)
+        count += 1
+      }
+      val size = count - prev
+      documentSize += d -> size
 
-    type UnresolvedElementCrossReferences = Set[UnresolvedElementCrossReference[Uml]]
-    type Document2RelationTriples = Map[Document[Uml], Seq[RelationTriple[Uml]]]
-    type DocumentPair2RelationTriplesUnresolvedElementCrossReferences =
-    (Map[(Document[Uml], Document[Uml]), Seq[RelationTriple[Uml]]], UnresolvedElementCrossReferences)
+      val now = java.lang.System.currentTimeMillis()
+      val duration = prettyFiniteDuration(now - time, java.util.concurrent.TimeUnit.MILLISECONDS)
+      remaining = remaining - 1
+      System.out.println(s"\n# ($remaining documents left) => Scanned $size document elements in $duration")
+      System.out.println(d.documentURL)
 
-    val u0
-    : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
-    = \&/.That(
-        ( Map[(Document[Uml], Document[Uml]), Seq[RelationTriple[Uml]]](),
-          Set[UnresolvedElementCrossReference[Uml]]()
-        ))
-    val empty_uxref = Set[UnresolvedElementCrossReference[Uml]]()
-    val empty_d2triples = Map[Document[Uml], Seq[RelationTriple[Uml]]]()
+      time = now
+    }
 
-    val uN
-    : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
-    = (u0 /: allDocuments) { (ui, d) =>
+    System.out.println(s"\n# Found $count elements scanning all ${allDocuments.size} documents.")
 
-      val acc_d
-      : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
-      = ui.flatMap { case (dPair2relationTriples1, unresolvedXRefs1) =>
+    val unresolvedElementCrossReferences =
+      scala.collection.mutable.Queue[UnresolvedElementCrossReference[Uml]]()
 
-        val extent0
-        : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
-        = \&/.That((dPair2relationTriples1, unresolvedXRefs1))
+    val documentPairs2RelationTriples
+    : Map[Document[Uml], Map[Document[Uml], scala.collection.mutable.Queue[RelationTriple[Uml]]]]
+    = allDocuments
+      .map { di =>
 
-        val extentN
-        : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
-        = (extent0 /: d.extent) { (extentI, e) =>
+        val diMap
+        : Map[Document[Uml], scala.collection.mutable.Queue[RelationTriple[Uml]]]
+        = allDocuments
+          .flatMap { dj =>
+            if (di != dj)
+              Some(dj -> scala.collection.mutable.Queue[RelationTriple[Uml]]())
+            else
+              None
+          }
+          .toMap
 
-          val extentK =
-            extentI.flatMap {
-              case (ti, ui) =>
+        di -> diMap
+      }
+      .toMap
 
-                val eTriples
-                : Set[java.lang.Throwable] \&/ Set[RelationTriple[Uml]]
-                = e
-                  .forwardRelationTriples()
-                  .toThese
+    def getDocumentHyperedge
+    (di: Document[Uml], dj: Document[Uml])
+    : scala.collection.mutable.Queue[RelationTriple[Uml]]
+    = documentPairs2RelationTriples(di)(dj)
 
-                val tu_triples
-                : Set[java.lang.Throwable] \&/ DocumentPair2RelationTriplesUnresolvedElementCrossReferences
-                = eTriples
-                  .map { triples =>
+    val errors = scala.collection.mutable.HashSet[java.lang.Throwable]()
 
-                    val (unresolvedXRefs: UnresolvedElementCrossReferences, triplesByDocument: Document2RelationTriples)
-                    = ((empty_uxref, empty_d2triples) /: triples) {
-                      case ((us, d2ts), t) =>
-                        lookupDocumentByExtent(t.obj)
-                          .fold[(UnresolvedElementCrossReferences, Document2RelationTriples)](
-                          (us + UnresolvedElementCrossReference(d, t), d2ts)
-                        ) { dRef =>
-                          if (includeAllForwardRelationTriple(d, t, dRef))
-                            (us, d2ts.updated(dRef, t +: d2ts.getOrElse(dRef, Seq[RelationTriple[Uml]]())))
-                          else
-                            (us, d2ts)
-                        }
-                    }
+    def addErrors
+    (nels: Set[java.lang.Throwable])
+    : Unit
+    = {
+      errors ++= nels
+      ()
+    }
 
-                    val tj = (ti /: triplesByDocument) {
-                      case (dPair2triples, (dRef, refTriples)) =>
-                        if (d == dRef)
-                        // do not create a self-edge for intra-document reference triples
-                          dPair2triples
-                        else {
-                          // only add inter-document edges with the reference triples
-                          val key = (d, dRef)
-                          dPair2triples.updated(
-                            key,
-                            value = dPair2triples.getOrElse(key, Seq[RelationTriple[Uml]]()) ++ refTriples
-                          )
-                        }
-                    }
+    def addTriples
+    (d: Document[Uml])
+    (triples: Set[RelationTriple[Uml]])
+    : Unit
+    = triples.foreach { t =>
+      lookupDocumentByExtent(t.obj)
+        .fold[Unit] {
+        unresolvedElementCrossReferences += UnresolvedElementCrossReference(d, t)
+        ()
+      } { dRef =>
+        if (d != dRef && includeAllForwardRelationTriple(d, t, dRef)) {
+          val dPairTriples = getDocumentHyperedge(d, dRef)
+          dPairTriples += t
+          tcount = tcount + 1
+        }
+        ()
+      }
+    }
 
-                    (tj, ui ++ unresolvedXRefs)
-                  }
+    def addElementForwardRelationTriples
+    (d: Document[Uml],
+     e: UMLElement[Uml])
+    : Unit
+    = e.forwardRelationTriples().fold(addErrors,addTriples(d))
 
-                // finished processing all of e's forward relation triples
-                tu_triples
-            }
+    System.out.println(s"\n# Begin resolving ${allDocuments.size} documents...")
+    remaining = allDocuments.size
+    allDocuments.foreach { d =>
 
-          // finished processing element e in d's extent
-          extentK
+      remaining = remaining - 1
+
+      System.out.println(s"# ($remaining documents left) => Resolving ${d.documentURL} ")
+
+      val size = documentSize(d)
+      val chunk = {
+        val c10 = size / 10
+        val c100 = size / 100
+        if (c100 > 100)
+          c100
+        else if (c10 > 10)
+          c10
+        else
+          1
+      }
+      var count: Int = 0
+      var base = java.lang.System.currentTimeMillis()
+
+      d.extent.foreach { e =>
+
+        addElementForwardRelationTriples(d, e)
+
+        count = count + 1
+        if (0 == count % chunk) {
+          val step = java.lang.System.currentTimeMillis()
+          val duration = prettyFiniteDuration(step - base, java.util.concurrent.TimeUnit.MILLISECONDS)
+          System.out.println(s"# $count / $size: $tcount triples => $duration")
+          base = step
         }
 
-        // finished processing all of d's extent
-        extentN
       }
 
-      // finished processing all the documents
-      acc_d
-    }
-
-    val result
-    : Set[java.lang.Throwable] \&/
-      (ResolvedDocumentSet[Uml], scala.collection.immutable.Iterable[UnresolvedElementCrossReference[Uml]])
-    = uN.map { case (dPair2relationTriples, unresolved) =>
-      dPair2relationTriples.foreach { case ((dFrom, dTo), triples) =>
-        // For each inter-document edge: dFrom ~> dTo, record all the RelationTripes(subject, object)
-        // where subject is in dFrom and object is in dTo as the justification for the edge.
-        g += DocumentEdge(dFrom, dTo, triples)
+      {
+        val now = java.lang.System.currentTimeMillis()
+        val duration = prettyFiniteDuration(now - time, java.util.concurrent.TimeUnit.MILLISECONDS)
+        System.out.println(s"# ($remaining documents left) => Resolved in $duration")
+        time = now
       }
-      (ResolvedDocumentSet(
-        this,
-        g,
-        unresolvedElementMapper),
-        unresolved)
+
     }
 
-    result
+
+    var hyperEdgeCount: Int = 0
+
+    time = java.lang.System.currentTimeMillis()
+
+    documentPairs2RelationTriples.foreach { case (dFrom, diMap) =>
+      diMap.foreach { case (dTo, triples) =>
+        if (triples.nonEmpty) {
+          hyperEdgeCount = hyperEdgeCount + 1
+          // For each inter-document edge: dFrom ~> dTo, record all the RelationTripes(subject, object)
+          // where subject is in dFrom and object is in dTo as the justification for the edge.
+          g += DocumentEdge(dFrom, dTo, triples.to[Vector])
+        }
+      }
+    }
+
+    {
+      val now = java.lang.System.currentTimeMillis()
+      val duration = prettyFiniteDuration(now - time, java.util.concurrent.TimeUnit.MILLISECONDS)
+      System.out.println(s"# Created $hyperEdgeCount hyper edges among ${allDocuments.size} nodes with ${unresolvedElementCrossReferences.size} unresolved references in $duration")
+      time = now
+    }
+
+    val result = Tuple2(ResolvedDocumentSet(this, g, unresolvedElementMapper), unresolvedElementCrossReferences.to[Vector])
+
+    if (errors.isEmpty)
+      \&/.That(result)
+    else
+      \&/.Both(errors.to[Set], result)
   }
 
   /**

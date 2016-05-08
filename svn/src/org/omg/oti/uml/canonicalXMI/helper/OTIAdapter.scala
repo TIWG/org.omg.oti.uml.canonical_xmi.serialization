@@ -82,7 +82,9 @@ case class OTIAdapter
  umlF: Uf,
  umlU: Uu) {
 
-  def withInitialDocumentSet[Do <: DocumentOps[Uml], Ds <: DocumentSet[Uml]]
+  def withInitialDocumentSet
+  [Do <: DocumentOps[Uml],
+   Ds <: DocumentSet[Uml]]
   (documentOpsCreator: OTIAdapter[Uml, Uo, Ch, Uf, Uu] => Set[java.lang.Throwable] \/ Do,
    documentSetInitializer: Do => Set[java.lang.Throwable] \&/ Ds)
   ( implicit
