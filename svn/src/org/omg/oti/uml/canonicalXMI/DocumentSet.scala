@@ -257,26 +257,40 @@ trait DocumentSet[Uml <: UML] {
     *         2) [[UnresolvedElementCrossReference]] information about unresolved element cross-references
     */
   def resolve
-  (ignoreCrossReferencedElementFilter: UMLElement[Uml] => Boolean,
-   unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
-   includeAllForwardRelationTriple: (Document[Uml], RelationTriple[Uml], Document[Uml]) => Boolean =
-     DocumentSet.includeAllForwardRelationTriple[Uml])
+  (ignoreCrossReferencedElementFilter
+   : UMLElement[Uml] => Boolean,
+
+   unresolvedElementMapper
+   : UMLElement[Uml] => Option[UMLElement[Uml]],
+
+   includeAllForwardRelationTriple
+   : (Document[Uml], RelationTriple[Uml], Document[Uml]) => Boolean = DocumentSet.includeAllForwardRelationTriple[Uml],
+
+   progressTelemetry
+   : DocumentResolverProgressTelemetry)
   : Set[java.lang.Throwable] \&/
     (ResolvedDocumentSet[Uml], Vector[UnresolvedElementCrossReference[Uml]])
   = this.synchronized {
 
     val g = mGraphFactory.empty()
 
-    System.out.println(s"# Begin scanning ${allDocuments.size} documents...")
     var remaining: scala.Int = allDocuments.size
+    progressTelemetry.scanStarted(DocumentResolverProgressTelemetry.NumberOfDocuments(remaining))
 
-    var time: scala.Long = java.lang.System.currentTimeMillis()
+    val t0: scala.Long = java.lang.System.currentTimeMillis()
+    var time: scala.Long = t0
 
     val documentSize = scala.collection.mutable.HashMap[Document[Uml], Int]()
     var count: Int = 0
     var tcount: Int = 0
     // add each document as a node in the graph
     allDocuments foreach { d =>
+
+      progressTelemetry.scanDocumentStarted(
+        DocumentResolverProgressTelemetry.DocumentURL(d.documentURL.toString))
+
+      time = java.lang.System.currentTimeMillis()
+
       g += d
       val prev = count
       d.extent.foreach { e =>
@@ -289,13 +303,20 @@ trait DocumentSet[Uml <: UML] {
       val now = java.lang.System.currentTimeMillis()
       val duration = prettyFiniteDuration(now - time, java.util.concurrent.TimeUnit.MILLISECONDS)
       remaining = remaining - 1
-      System.out.println(s"\n# ($remaining documents left) => Scanned $size document elements in $duration")
-      System.out.println(d.documentURL)
 
-      time = now
+      progressTelemetry.scanDocumentEnded(
+        DocumentResolverProgressTelemetry.NumberOfElements(size),
+        DocumentResolverProgressTelemetry.Duration(duration))
+
     }
 
-    System.out.println(s"\n# Found $count elements scanning all ${allDocuments.size} documents.")
+    progressTelemetry.scanEnded(
+      DocumentResolverProgressTelemetry.NumberOfDocuments(allDocuments.size),
+      DocumentResolverProgressTelemetry.NumberOfElements(count),
+      DocumentResolverProgressTelemetry.Duration(
+        prettyFiniteDuration(
+          java.lang.System.currentTimeMillis() - t0,
+          java.util.concurrent.TimeUnit.MILLISECONDS)))
 
     val unresolvedElementCrossReferences =
       scala.collection.mutable.Queue[UnresolvedElementCrossReference[Uml]]()
@@ -360,8 +381,12 @@ trait DocumentSet[Uml <: UML] {
     : Unit
     = e.forwardRelationTriples().fold(addErrors,addTriples(d))
 
-    System.out.println(s"\n# Begin resolving ${allDocuments.size} documents...")
     remaining = allDocuments.size
+    progressTelemetry.resolveStarted(
+      DocumentResolverProgressTelemetry.NumberOfDocuments(remaining))
+
+    val r0 = java.lang.System.currentTimeMillis()
+
     allDocuments.foreach { d =>
 
       remaining = remaining - 1
@@ -379,7 +404,13 @@ trait DocumentSet[Uml <: UML] {
         else
           1
       }
+
+      progressTelemetry.resolveDocumentStarted(
+        DocumentResolverProgressTelemetry.DocumentURL(d.documentURL.toString),
+        DocumentResolverProgressTelemetry.NumberOfElements(size))
+
       var count: Int = 0
+
       var base = java.lang.System.currentTimeMillis()
 
       d.extent.foreach { e =>
@@ -390,7 +421,13 @@ trait DocumentSet[Uml <: UML] {
         if (0 == count % chunk) {
           val step = java.lang.System.currentTimeMillis()
           val duration = prettyFiniteDuration(step - base, java.util.concurrent.TimeUnit.MILLISECONDS)
-          System.out.println(s"# $count / $size: $tcount triples => $duration")
+
+          progressTelemetry.resolveDocumentStepped(
+            DocumentResolverProgressTelemetry.NumberOfElements(count),
+            DocumentResolverProgressTelemetry.NumberOfElements(size),
+            DocumentResolverProgressTelemetry.NumberOfTriples(tcount),
+            DocumentResolverProgressTelemetry.Duration(duration))
+
           base = step
         }
 
@@ -399,12 +436,16 @@ trait DocumentSet[Uml <: UML] {
       {
         val now = java.lang.System.currentTimeMillis()
         val duration = prettyFiniteDuration(now - time, java.util.concurrent.TimeUnit.MILLISECONDS)
-        System.out.println(s"# ($remaining documents left) => Resolved in $duration")
+
+        progressTelemetry.resolveDocumentEnded(
+          DocumentResolverProgressTelemetry.NumberOfElements(count),
+          DocumentResolverProgressTelemetry.NumberOfTriples(tcount),
+          DocumentResolverProgressTelemetry.Duration(duration))
+
         time = now
       }
 
     }
-
 
     var hyperEdgeCount: Int = 0
 
@@ -424,7 +465,15 @@ trait DocumentSet[Uml <: UML] {
     {
       val now = java.lang.System.currentTimeMillis()
       val duration = prettyFiniteDuration(now - time, java.util.concurrent.TimeUnit.MILLISECONDS)
-      System.out.println(s"# Created $hyperEdgeCount hyper edges among ${allDocuments.size} nodes with ${unresolvedElementCrossReferences.size} unresolved references in $duration")
+
+      progressTelemetry.resolveEnded(
+        DocumentResolverProgressTelemetry.NumberOfDocuments(allDocuments.size),
+        DocumentResolverProgressTelemetry.NumberOfElements(count),
+        DocumentResolverProgressTelemetry.NumberOfTriples(tcount),
+        DocumentResolverProgressTelemetry.NumberOfHyperEdges(hyperEdgeCount),
+        DocumentResolverProgressTelemetry.NumberOfUnresolvedCrossReferences(unresolvedElementCrossReferences.size),
+        DocumentResolverProgressTelemetry.Duration(duration))
+
       time = now
     }
 

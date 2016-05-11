@@ -40,7 +40,7 @@ package org.omg.oti.uml.canonicalXMI.helper
 
 import org.omg.oti.json.common.OTISpecificationRootCharacteristics
 import org.omg.oti.uml.RelationTriple
-import org.omg.oti.uml.canonicalXMI.{DocumentOps, DocumentSet}
+import org.omg.oti.uml.canonicalXMI.{DocumentOps, DocumentResolverProgressTelemetry, DocumentSet}
 import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
 import org.omg.oti.uml.read.api.{UML, UMLElement, UMLPackage}
 import org.omg.oti.uml.read.operations.UMLOps
@@ -87,10 +87,11 @@ case class OTIDocumentSetAdapter
   def resolve
   (ignoreCrossReferencedElementFilter: UMLElement[Uml] => Boolean,
    unresolvedElementMapper: UMLElement[Uml] => Option[UMLElement[Uml]],
-   includeAllForwardRelationTriple: (Document[Uml], RelationTriple[Uml], Document[Uml]) => Boolean)
+   includeAllForwardRelationTriple: (Document[Uml], RelationTriple[Uml], Document[Uml]) => Boolean,
+   progressTelemetry: DocumentResolverProgressTelemetry)
   : Set[java.lang.Throwable] \&/ OTIResolvedDocumentSetAdapter[Uml, Uo, Ch, Uf, Uu, Do, Ds]
   = ds
-    .resolve(ignoreCrossReferencedElementFilter, unresolvedElementMapper, includeAllForwardRelationTriple)
+    .resolve(ignoreCrossReferencedElementFilter, unresolvedElementMapper, includeAllForwardRelationTriple, progressTelemetry)
     .map { case (rds, unresolved) =>
       OTIResolvedDocumentSetAdapter(otiAdapter, documentOps, rds, unresolved)
     }
