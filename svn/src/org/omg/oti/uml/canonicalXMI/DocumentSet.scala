@@ -38,8 +38,8 @@
  */
 package org.omg.oti.uml.canonicalXMI
 
-import java.io.{BufferedWriter,FileWriter,PrintWriter,Serializable}
-import java.lang.{IllegalArgumentException,System}
+import java.io.Serializable
+import java.lang.System
 
 import org.omg.oti.json.common.OTIArtifactKind
 import org.omg.oti.json.common.OTIPrimitiveTypes._
@@ -50,11 +50,9 @@ import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.xmi._
 
-import scala.annotation.tailrec
-import scala.language.{higherKinds,implicitConversions,postfixOps}
-import scala.reflect.runtime.universe
+import scala.language.higherKinds
 import scala.reflect.runtime.universe._
-import scala.{Boolean,Either,Function1,Int,Option,Left,None,Right,Product,Some,StringContext,Tuple2,Unit}
+import scala.{Boolean,Either,Int,Option,Left,None,Right,Product,Some,StringContext,Tuple2,Unit}
 import scala.Predef.{Map =>_, Set =>_,_}
 import scala.collection.immutable._
 import scala.collection.Iterable
@@ -66,9 +64,6 @@ import scalax.collection.GraphPredef._
 import scalax.collection.constrained._
 import scalax.collection.constrained.constraints.NoneConstraint
 import scalax.collection.constrained.generic.GraphConstrainedCompanion
-import scalax.collection.io.edge.CEdgeParameters
-import scalax.collection.io.json.descriptor.CEdgeDescriptor
-import scalax.collection.io.json.descriptor.NodeDescriptor
 
 import scalaz._, Scalaz._
 

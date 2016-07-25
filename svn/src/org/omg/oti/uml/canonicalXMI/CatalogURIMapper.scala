@@ -42,10 +42,8 @@ import org.omg.oti.uml.UMLError
 
 import java.net.{URI, URL}
 
-import org.omg.oti.uml.read.api.UML
-
-import scala.{Boolean, Int, Option, None, Some, StringContext, Unit}
-import scala.Predef.{classOf,require, String}
+import scala.{Int, Option, StringContext, Unit}
+import scala.Predef.{classOf, String}
 import scala.collection.immutable._
 import scala.util.control.Exception._
 

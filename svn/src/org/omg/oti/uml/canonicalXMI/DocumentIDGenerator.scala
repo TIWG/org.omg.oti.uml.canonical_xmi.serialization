@@ -45,10 +45,9 @@ import org.omg.oti.json.common.OTIPrimitiveTypes._
 import org.omg.oti.uml.UMLError
 import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
 import org.omg.oti.uml.read.api._
-import org.omg.oti.uml.read.operations.UMLOps
 import org.omg.oti.uml.xmi._
 
-import scala.{Boolean, Int, None, Option, Some, StringContext, Unit}
+import scala.{Boolean, None, Option, Some, StringContext, Unit}
 import scala.Predef.{String, require}
 import scala.collection.immutable._
 import scala.Predef.{Map => _, Set => _, _}

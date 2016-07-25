@@ -39,7 +39,6 @@
 package org.omg.oti.uml.canonicalXMI
 
 import java.io.{FileOutputStream, OutputStreamWriter, PrintWriter}
-import java.lang.IllegalArgumentException
 
 import org.omg.oti.json.common.OTIPrimitiveTypes._
 import org.omg.oti.uml._
@@ -47,11 +46,10 @@ import org.omg.oti.uml.read.UMLStereotypeTagValue
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.xmi._
 
-import scala.{Boolean, Function0, Option, None, Some, StringContext, Tuple2, Tuple3, Unit}
+import scala.{Boolean, Function0, Option, None, Some, StringContext, Tuple2, Tuple3}
 import scala.Predef.{Set => _, Map => _, _}
 import scala.annotation.tailrec
 import scala.collection.immutable._
-import scala.language.{higherKinds, implicitConversions, postfixOps}
 import scala.util.control.Exception._
 import scalaz._, Free._, Scalaz._
 

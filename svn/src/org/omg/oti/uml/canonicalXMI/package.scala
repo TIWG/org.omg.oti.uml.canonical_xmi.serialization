@@ -42,7 +42,6 @@ import org.omg.oti.uml.read.api.{UMLElement, UML}
 import org.omg.oti.uml.xmi.IDGenerator
 
 import scala.collection.immutable.{Iterable,Set}
-import scala.{Option,None}
 import scala.Predef.String
 import scalaz._, Scalaz._
 

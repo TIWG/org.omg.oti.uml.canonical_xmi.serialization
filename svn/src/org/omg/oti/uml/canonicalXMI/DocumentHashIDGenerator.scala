@@ -50,7 +50,7 @@ import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.xmi._
 
-import scala.{Boolean, Int, None, Option, Some, StringContext, Unit}
+import scala.{Boolean, None, Option, Some, StringContext, Unit}
 import scala.Predef.{require, Map => _, Set => _, _}
 import scala.collection.immutable._
 import scala.language.postfixOps
@@ -278,7 +278,7 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   = self
     .xmiUUID()(this)
     .map { uuid =>
-      val id = Hex.encodeHexString(DigestUtils.sha(OTI_UUID.unwrap(uuid)))
+      val id = Hex.encodeHexString(DigestUtils.sha1(OTI_UUID.unwrap(uuid)))
       OTI_ID(id)
     }
 
