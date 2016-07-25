@@ -245,7 +245,7 @@ trait DocumentSet[Uml <: UML] {
     * @param ignoreCrossReferencedElementFilter A predicate determining which elements or 
     *                                           element references to ignore
     * @param unresolvedElementMapper A partial function mapping unresolved elements to resolvable elements
-    * @return A fail-lazy pair ([[scalaz.\&/]]):
+    * @return A fail-lazy pair (`scalaz.\&/`):
     *         - optionally, errors encountered during the resolution process
     *         - optionally, a pair of:
     *         1) a [[ResolvedDocumentSet]] constructed from the [[DocumentSet]]'s document nodes & edges
