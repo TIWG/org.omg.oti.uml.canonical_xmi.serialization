@@ -5,26 +5,7 @@ import sbt._
 import gov.nasa.jpl.imce.sbt._
 import gov.nasa.jpl.imce.sbt.ProjectHelper._
 
-useGpg := true
-
 updateOptions := updateOptions.value.withCachedResolution(true)
-
-developers := List(
-  Developer(
-    id="rouquett",
-    name="Nicolas F. Rouquette",
-    email="nicolas.f.rouquette@jpl.nasa.gov",
-    url=url("https://gateway.jpl.nasa.gov/personal/rouquett/default.aspx")),
-  Developer(
-    id="melaasar",
-    name="Maged Elaasar",
-    email="maged.elaasar@jpl.nasa.gov",
-    url=url("https://gateway.jpl.nasa.gov/personal/melaasar/default.aspx")),
-  Developer(
-    id="ybernard",
-    name="Yves Bernard",
-    email="yves.bernard@airbus.com",
-    url=url("http://airbus.com")))
 
 resolvers ++= {
   if (git.gitUncommittedChanges.value)
@@ -140,36 +121,34 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
     organizationName := "JPL, Caltech, Airbus & Object Management Group",
     organizationHomepage := Some(url("http://solitaire.omg.org/browse/TIWG")),
 
-    scalaSource in Compile :=
-      baseDirectory.value / "svn" / "src",
-
     extractArchives := {},
 
-    libraryDependencies ++= Seq (
-      "gov.nasa.jpl.imce.thirdParty" %% "scala-graph-libraries"
-        % Versions_scala_graph_libraries.version artifacts
-        Artifact("scala-graph-libraries", "zip", "zip", Some("resource"), Seq(), None, Map()),
+    resolvers += Resolver.bintrayRepo("jpl-imce", "gov.nasa.jpl.imce"),
+    resolvers += Resolver.bintrayRepo("tiwg", "org.omg.tiwg"),
 
-      "gov.nasa.jpl.imce.thirdParty" %% "owlapi-libraries"
+    libraryDependencies ++= Seq(
+      "gov.nasa.jpl.imce" %% "imce.third_party.scala_graph_libraries"
+        % Versions_scala_graph_libraries.version artifacts
+        Artifact("imce.third_party.scala_graph_libraries", "zip", "zip", Some("resource"), Seq(), None, Map()),
+
+      "gov.nasa.jpl.imce" %% "imce.third_party.owlapi_libraries"
         % Versions_owlapi_libraries.version artifacts
-        Artifact("owlapi-libraries", "zip", "zip", Some("resource"), Seq(), None, Map())
+        Artifact("imce.third_party.owlapi_libraries", "zip", "zip", Some("resource"), Seq(), None, Map())
     ),
 
-    IMCEKeys.nexusJavadocRepositoryRestAPIURL2RepositoryName := Map(
-       "https://oss.sonatype.org/service/local" -> "releases",
-       "https://cae-nexuspro.jpl.nasa.gov/nexus/service/local" -> "JPL"),
-    IMCEKeys.pomRepositoryPathRegex := """\<repositoryPath\>\s*([^\"]*)\s*\<\/repositoryPath\>""".r
+    extractArchives := {}
 
   )
   .dependsOnSourceProjectOrLibraryArtifacts(
     "oti-uml-core",
     "org.omg.oti.uml.core",
     Seq(
-      "org.omg.tiwg" %% "oti-uml-core"
+      "org.omg.tiwg" %% "org.omg.oti.uml.core"
         % Versions_oti_uml_core.version % "compile" withSources() withJavadoc() artifacts
-        Artifact("oti-uml-core", "zip", "zip", Some("resource"), Seq(), None, Map())
+        Artifact("org.omg.oti.uml.core", "zip", "zip", Some("resource"), Seq(), None, Map())
     )
   )
+
 
 def dynamicScriptsResourceSettings(dynamicScriptsProjectName: Option[String] = None): Seq[Setting[_]] = {
 

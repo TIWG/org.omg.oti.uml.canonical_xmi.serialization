@@ -1,45 +1,30 @@
 /*
- *
- * License Terms
- *
- * Copyright (c) 2014-2016, California Institute of Technology ("Caltech").
+ * Copyright 2014 California Institute of Technology ("Caltech").
  * U.S. Government sponsorship acknowledged.
  *
- * All rights reserved.
+ * Copyright 2015 Airbus.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * *   Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * *   Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the
- *    distribution.
- *
- * *   Neither the name of Caltech nor its operating division, the Jet
- *    Propulsion Laboratory, nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * License Terms
  */
+
 package org.omg.oti.uml.canonicalXMI
 
 import java.lang.Integer
 import java.net.URL
+
+import org.apache.commons.codec.binary.Hex
+import org.apache.commons.codec.digest.DigestUtils
 
 import org.omg.oti.json.common.OTIPrimitiveTypes._
 import org.omg.oti.uml.UMLError
@@ -48,18 +33,17 @@ import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.xmi._
 
 import scala.{Boolean, None, Option, Some, StringContext, Unit}
-import scala.Predef.{String, require}
+import scala.Predef.{require, Map => _, Set => _, _}
 import scala.collection.immutable._
-import scala.Predef.{Map => _, Set => _, _}
 import scala.language.postfixOps
 import scala.util.control.Exception._
+import scalaz.Scalaz._
 import scalaz._
-import Scalaz._
 
 /**
  * @tparam Uml
  */
-trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
+trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   implicit val documentSet: DocumentSet[Uml]
 
@@ -75,9 +59,9 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   protected val element2id: Element2IDHashMap
 
-  protected val elementRules: List[Element2IDRule]
+  protected val elementRules: List[Element2UUIDRule]
 
-  protected val containmentRules: List[ContainedElement2IDRule]
+  protected val containmentRules: List[ContainedElement2UUIDRule]
 
   protected val element2uuid: Element2UUIDHashMap
 
@@ -127,6 +111,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   def computePackageExtentXMI_ID(pkg: UMLPackage[Uml])
   : Set[java.lang.Throwable] \/ Unit
   = {
+
     val extent = pkg
       .allOwnedElements
       .+(pkg)
@@ -193,10 +178,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         case db2: Document[Uml] with BuiltInDocument =>
           require(d1 != db2)
           val builtIn_d2_id = TOOL_SPECIFIC_ID.unwrap(to.toolSpecific_id)
-
           // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
           val bid = for {
-
             builtInURI <- documentOps.getExternalDocumentURL(db2.documentURL)
 
             builtInURITo =
@@ -217,11 +200,11 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
         case _: Document[Uml] with SerializableDocument =>
           getMappedOrReferencedElement(to)
-          .flatMap( _to => getXMI_ID(_to).map(OTI_ID.unwrap))
+          .flatMap( _to => getXMI_UUID(_to).map(OTI_UUID.unwrap))
 
         case d =>
           Set(
-            documentIDGeneratorException(
+            documentUUIDGeneratorException(
               this,
               Iterable(from, to),
               s"getXMI_IDREF_or_HREF_fragment_internal: error: Unknown document $d for element reference to"))
@@ -242,7 +225,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       element2document( self )
         .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)] {
           Set(
-            documentIDGeneratorException(
+            documentUUIDGeneratorException(
               this,
               Iterable(self),
               "getXMI_ID error: Unknown document for element reference"))
@@ -263,7 +246,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
           case d =>
             Set(
-              documentIDGeneratorException(
+              documentUUIDGeneratorException(
                 this,
                 Iterable(self),
                 s"getXMI_ID error: Unrecognized document $d for element"))
@@ -274,51 +257,12 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   def computeSingleElementXMI_ID(self: UMLElement[Uml])
   : Set[java.lang.Throwable] \/ (String @@ OTI_ID)
-  = {
-    val r =
-      elementRules
-      .toStream
-      .dropWhile { r: Element2IDRule =>
-        !r.isDefinedAt(self)
-      }
-
-    if (r.nonEmpty)
-      r.head(self)
-    else
-      self
-      .owner
-      .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)] {
-        Set(
-          documentIDGeneratorException(
-            this,
-            Iterable(self),
-            "computeID error: Element without an owner is not supported(1)"))
-        .left
-      }{ owner =>
-        self
-        .getContainingMetaPropertyEvaluator()(this)
-        .flatMap(ocf =>
-          ocf.fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)]{
-            -\/(Set[java.lang.Throwable](documentIDGeneratorException[Uml](
-              this,
-              Iterable(self),
-              "computeID error: Element without an owner is not supported(2)")))
-          }{ cf =>
-            getXMI_ID(owner)
-            .flatMap{ ownerID =>
-                val c = containmentRules.toStream.dropWhile((c: ContainedElement2IDRule) =>
-                  !c.isDefinedAt((owner, ownerID, cf, self)))
-                if (c.nonEmpty)
-                  c.head((owner, ownerID, cf, self))
-                else
-                  -\/(Set[java.lang.Throwable](documentIDGeneratorException(
-                    this,
-                    Iterable(self),
-                    "computeID error: Unsupported")))
-            }
-          })
-      }
-  }
+  = self
+    .xmiUUID()(this)
+    .map { uuid =>
+      val id = Hex.encodeHexString(DigestUtils.sha1(OTI_UUID.unwrap(uuid)))
+      OTI_ID(id)
+    }
 
   /**
     * The xmi:UUID of an element depends on what kind of document it is contained in.
@@ -387,47 +331,92 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
               Iterable(self)))
             .left
         ) { d =>
-          self
-            .xmiID()(this)
-            .flatMap { id =>
-              OTI_UUID(d.info.uuidPrefix + OTI_ID.unwrap(id))
+          val r =
+            elementRules
+              .toStream
+              .dropWhile { r: Element2UUIDRule =>
+                !r.isDefinedAt(self)
+              }
+
+          val ouuid
+          : Set[java.lang.Throwable] \/ (String @@ OTI_UUID)
+          = if (r.nonEmpty)
+            r.head(self)
+          else
+            self
+              .owner
+              .fold[Set[java.lang.Throwable] \/ (String @@ OTI_UUID)] {
+              Set(
+                documentUUIDGeneratorException(
+                  this,
+                  Iterable(self),
+                  "computeID error: Element without an owner is not supported(1)"))
+                .left
+            } { owner =>
+              self
+                .getContainingMetaPropertyEvaluator()(this)
+                .flatMap(ocf =>
+                  ocf.fold[Set[java.lang.Throwable] \/ (String @@ OTI_UUID)] {
+                    -\/(Set[java.lang.Throwable](documentUUIDGeneratorException[Uml](
+                      this,
+                      Iterable(self),
+                      "computeID error: Element without an owner is not supported(2)")))
+                  } { cf =>
+                    getXMI_UUID(owner)
+                      .flatMap { ownerUUID =>
+                        val c = containmentRules.toStream.dropWhile((c: ContainedElement2UUIDRule) =>
+                          !c.isDefinedAt((owner, ownerUUID, cf, self)))
+                        if (c.nonEmpty)
+                          c.head((owner, ownerUUID, cf, self))
+                        else
+                          -\/(Set[java.lang.Throwable](documentUUIDGeneratorException(
+                            this,
+                            Iterable(self),
+                            "computeID error: Unsupported")))
+                      }
+                  })
+            }
+
+          ouuid
+            .flatMap { uuid =>
+              OTI_UUID(d.info.uuidPrefix + OTI_UUID.unwrap(uuid))
                 .right
             }
         }
       }
   }
 
-  val rule0: Element2IDRule = {
+  val rule0: Element2UUIDRule = {
     case root: UMLPackage[Uml]
       if (documentSet.lookupDocumentByScope(root).isDefined
           // Adding condition for stopping the ID computation algorithm when a specification root is reached
           || root.hasSpecificationRootCharacteristics) =>
       root
       .name
-      .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)] {
+      .fold[Set[java.lang.Throwable] \/ (String @@ OTI_UUID)] {
         Set(
-          documentIDGeneratorException(
+          documentUUIDGeneratorException(
             this,
             Iterable(root),
             "rule0 error: Document package scope must be explicitly named"))
         .left
       }{
         n =>
-          OTI_ID(IDGenerator.xmlSafeID(n))
-          .right
+          val uuid = IDGenerator.xmlSafeID(n)
+          OTI_UUID(uuid).right
       }
   }
 
   /**
    * Rule #1 (InstanceValue)
    */
-  val crule1: ContainedElement2IDRule = {
-    case (owner, ownerID, cf, iv: UMLInstanceValue[Uml]) =>
+  val crule1: ContainedElement2UUIDRule = {
+    case (owner, ownerUUID, cf, iv: UMLInstanceValue[Uml]) =>
       iv
       .instance
-      .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)] {
+      .fold[Set[java.lang.Throwable] \/ (String @@ OTI_UUID)] {
         Set(
-          documentIDGeneratorException(
+          documentUUIDGeneratorException(
             this,
             Iterable(owner, iv),
             "crule1 error: InstanceValue without InstanceSpecification is not supported"))
@@ -435,9 +424,9 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       }{ is =>
         is
         .name
-        .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)] {
+        .fold[Set[java.lang.Throwable] \/ (String @@ OTI_UUID)] {
           Set(
-            documentIDGeneratorException(
+            documentUUIDGeneratorException(
               this,
               Iterable(owner, iv, is),
               "crule1 error: InstanceValue must refer to a named InstanceSpecification"))
@@ -445,13 +434,15 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         }{ nInstance =>
           iv.getContainingMetaPropertyEvaluator()(this)
           .flatMap(ocf =>
-            ocf.fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)]{
-            -\/(Set[java.lang.Throwable](documentIDGeneratorException[Uml](
+            ocf.fold[Set[java.lang.Throwable] \/ (String @@ OTI_UUID)]{
+            -\/(Set[java.lang.Throwable](documentUUIDGeneratorException[Uml](
               this,
               Iterable(owner, iv, is),
               "crule1 error: Element without an owner is not supported(3)")))
           }{ cf =>
-            \/-(OTI_ID(OTI_ID.unwrap(ownerID) + "_" + IDGenerator.xmlSafeID(cf.propertyName + "." + nInstance)))
+              val uuid =
+                OTI_UUID.unwrap(ownerUUID) + "_" + IDGenerator.xmlSafeID(cf.propertyName + "." + nInstance)
+              \/-(OTI_UUID(uuid))
           })
         }
       }
@@ -461,8 +452,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    * Rule #1 (NamedElement)
    * case (a): Feature or ValueSpecification
    */
-  val crule1a: ContainedElement2IDRule = {
-    case (owner, ownerID, cf, fv@(_: UMLFeature[Uml] | _: UMLValueSpecification[Uml])) =>
+  val crule1a: ContainedElement2UUIDRule = {
+    case (owner, ownerUUID, cf, fv@(_: UMLFeature[Uml] | _: UMLValueSpecification[Uml])) =>
       val fvn = fv.asInstanceOf[UMLNamedElement[Uml]]
       val shortID: Set[java.lang.Throwable] \/ String = owner match {
         case s: UMLSlot[Uml] =>
@@ -470,7 +461,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           .definingFeature
           .fold[Set[java.lang.Throwable] \/ String] {
             Set(
-              documentIDGeneratorException(
+              documentUUIDGeneratorException(
                 this,
                 Iterable(owner, fv),
                 "crule1a error: Slot must have a defining StructuralFeature"))
@@ -502,7 +493,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           s +++
           p._type.fold[Set[java.lang.Throwable] \/ String]{
             Set(
-              documentIDGeneratorException(
+              documentUUIDGeneratorException(
                 this,
                 Iterable(owner, fv, p),
                 "crule1a error: Parameter must have a type"))
@@ -512,7 +503,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
             .name
             .fold[Set[java.lang.Throwable] \/ String] {
               Set(
-                documentIDGeneratorException(
+                documentUUIDGeneratorException(
                   this,
                   Iterable(owner, fv, p, t),
                   "crule1a error: Type must have a name"))
@@ -534,7 +525,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                 s
                 .definingFeature
                 .fold[Set[java.lang.Throwable] \/ String] {
-                  -\/(Set[java.lang.Throwable](documentIDGeneratorException(
+                  -\/(Set[java.lang.Throwable](documentUUIDGeneratorException(
                     this,
                     Iterable(is, s),
                     "crule1a error: Slot must have a defining StructuralFeature")))
@@ -576,7 +567,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         }
 
       suffix3.map { s =>
-        OTI_ID(ownerID + "_" + IDGenerator.xmlSafeID(cf.propertyName + s))
+        OTI_UUID(ownerUUID + "_" + IDGenerator.xmlSafeID(cf.propertyName + s))
       }
   }
 
@@ -584,10 +575,10 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    * Rule #1 (NamedElement)
    * case (b): not Feature, not ValueSpecification
    */
-  val crule1b: ContainedElement2IDRule = {
-    case (owner, ownerID, cf, ne: UMLNamedElement[Uml]) if ne.name.isDefined =>
-      OTI_ID(
-        OTI_ID.unwrap(ownerID) + "." +
+  val crule1b: ContainedElement2UUIDRule = {
+    case (owner, ownerUUID, cf, ne: UMLNamedElement[Uml]) if ne.name.isDefined =>
+      OTI_UUID(
+        OTI_UUID.unwrap(ownerUUID) + "." +
         IDGenerator.xmlSafeID(ne.metaclass_name) + "_" +
         IDGenerator.xmlSafeID(cf.propertyName) + "_" +
         IDGenerator.xmlSafeID(ne.name.getOrElse("")) )
@@ -597,13 +588,15 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   /**
    * Rule #2:  any Element on which Rule#1 does not apply and which is owned as an ordered set
    */
-  val crule2: ContainedElement2IDRule = {
-    case (owner, ownerID, cf, e) if cf.isOrdered && cf.isCollection =>
+  val crule2: ContainedElement2UUIDRule = {
+    case (owner, ownerUUID, cf, e) if cf.isOrdered && cf.isCollection =>
       e.getElementMetamodelPropertyValue(cf)(this)
       .flatMap{ vs =>
-          val values = vs.toList
-          require(values.contains(e))
-          \/-(OTI_ID(OTI_ID.unwrap(ownerID) + "_" + IDGenerator.xmlSafeID(cf.propertyName) + "." + values.indexOf(e)))
+        val values = vs.toList
+        require(values.contains(e))
+        val uuid =
+          OTI_UUID.unwrap(ownerUUID) + "_" + IDGenerator.xmlSafeID(cf.propertyName) + "." + values.indexOf(e)
+        \/-(OTI_UUID(uuid))
       }
   }
 
@@ -619,8 +612,8 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
    * references to elements in built-in documents include the built-in document URI in addition to the
    * xmi:ID of the referenced element.
    */
-  val crule3: ContainedElement2IDRule = {
-    case (owner, ownerID, cf, dr: UMLDirectedRelationship[Uml]) =>
+  val crule3: ContainedElement2UUIDRule = {
+    case (owner, ownerUUID, cf, dr: UMLDirectedRelationship[Uml]) =>
       (dr.source.toList, dr.target.toList) match {
         case (List(relSource), List(relTarget)) =>
           getXMI_IDREF_or_HREF_fragment(owner, relSource)
@@ -644,19 +637,19 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                         tid
                     }
 
-                  val relID =
-                    OTI_ID.unwrap(ownerID) +
+                  val relUUID =
+                    OTI_UUID.unwrap(ownerUUID) +
                       "." + sourceID +
                       "._" + IDGenerator.xmlSafeID(cf.propertyName) +
                       "._" + dr.mofMetaclassName +
                       "." + targetID
 
-                  \/-(OTI_ID(relID))
+                  \/-(OTI_UUID(relUUID))
                 }
             }
         case _ =>
           Set(
-            documentIDGeneratorException(
+            documentUUIDGeneratorException(
               this,
               Iterable(owner, dr),
               "crule3 error: Binary DirectedRelationship must have a target"))
@@ -667,13 +660,13 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   /**
    * Rule #4: any Element on which Rule#3 does not apply and which is a uml::Slot
    */
-  val crule4: ContainedElement2IDRule = {
-    case (owner, ownerID, cf, s: UMLSlot[Uml]) =>
+  val crule4: ContainedElement2UUIDRule = {
+    case (owner, ownerUUID, cf, s: UMLSlot[Uml]) =>
       s
       .definingFeature
-      .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)] {
+      .fold[Set[java.lang.Throwable] \/ (String @@ OTI_UUID)] {
         Set(
-          documentIDGeneratorException(
+          documentUUIDGeneratorException(
             this,
             Iterable(owner, s),
             "crule4 error: Slot must have a defining StructuralFeature"))
@@ -681,16 +674,17 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
       }{ sf =>
         sf
         .name
-        .fold[Set[java.lang.Throwable] \/ (String @@ OTI_ID)] {
+        .fold[Set[java.lang.Throwable] \/ (String @@ OTI_UUID)] {
           Set(
-            documentIDGeneratorException(
+            documentUUIDGeneratorException(
               this,
               Iterable(owner, s),
               "crule4 error: Slot's defining StructuralFeature must be named"))
           .left
         }{ sfn =>
-          OTI_ID(OTI_ID.unwrap(ownerID) + "." + IDGenerator.xmlSafeID(sfn))
-          .right
+          val uuid =
+            OTI_UUID.unwrap(ownerUUID) + "." + IDGenerator.xmlSafeID(sfn)
+          OTI_UUID(uuid).right
         }
       }
   }
@@ -698,28 +692,34 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   /**
    * Rule #5: any Element on which Rule#4 does not apply and which is uml::Comment
    */
-  val crule5: ContainedElement2IDRule = {
-    case (owner, ownerID, cf, c: UMLComment[Uml]) =>
-      OTI_ID(OTI_ID.unwrap(ownerID) + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + c.getCommentOwnerIndex)
-      .right
+  val crule5: ContainedElement2UUIDRule = {
+    case (owner, ownerUUID, cf, c: UMLComment[Uml]) =>
+      val uuid =
+        OTI_UUID.unwrap(ownerUUID) + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + c.getCommentOwnerIndex
+      OTI_UUID(uuid).right
   }
 
   /**
    * Rule #6: any Element on which Rule#5 does not apply and which is uml::Image
    */
-  val crule6: ContainedElement2IDRule = {
-    case (owner, ownerID, cf, i: UMLImage[Uml]) =>
+  val crule6: ContainedElement2UUIDRule = {
+    case (owner, ownerUUID, cf, i: UMLImage[Uml]) =>
       getImageLocationURL(i) map { locationURL =>
-        OTI_ID(OTI_ID.unwrap(ownerID) + "._" + IDGenerator.xmlSafeID(cf.propertyName) + "." + IDGenerator.xmlSafeID(OTI_URL.unwrap(locationURL)))
+        val uuid =
+          OTI_UUID.unwrap(ownerUUID) +
+            "._" + IDGenerator.xmlSafeID(cf.propertyName) +
+            "." + IDGenerator.xmlSafeID(OTI_URL.unwrap(locationURL))
+        OTI_UUID(uuid)
       }
   }
 
-  def getImageLocationURL(i: UMLImage[Uml]): Set[java.lang.Throwable] \/ (String @@ OTI_URL) =
-    i
+  def getImageLocationURL(i: UMLImage[Uml])
+  : Set[java.lang.Throwable] \/ (String @@ OTI_URL)
+  = i
     .location
     .fold[Set[java.lang.Throwable] \/ (String @@ OTI_URL)] {
       Set(
-        documentIDGeneratorException(
+        documentUUIDGeneratorException(
           this,
           Iterable(i),
           "getImageLocationURL error: An Image must have a non-null location URL"))
@@ -728,7 +728,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         nonFatalCatch
         .withApply { cause: java.lang.Throwable =>
           Set(
-            documentIDGeneratorException(
+            documentUUIDGeneratorException(
               this,
               Iterable(i),
               "getImageLocationURL error",
@@ -742,21 +742,19 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         })
     }
 
-  def checkIDs()
-  : Set[java.lang.Throwable] \/ Unit
-  = {
+  def checkIDs(): Boolean = {
     val id2Element = scala.collection.mutable.HashMap[String @@ OTI_ID, UMLElement[Uml]]()
     var res: Boolean = true
     var duplicates: Integer = 0
     var failed: Integer = 0
     println("\n>>> IDs Checking...")
 
-    val res0: Set[java.lang.Throwable] \/ Unit = \/-(())
-    val resN: Set[java.lang.Throwable] \/ Unit = ( res0 /: getElement2IDMap ) {
+    val res0: Boolean = true
+    val resN: Boolean = ( res0 /: getElement2IDMap ) {
       case ( resi, (ei, maybeId)) =>
-      resi +++
+      resi &&
       maybeId
-      .fold[Set[java.lang.Throwable] \/ Unit](
+      .fold[Boolean](
         (errors: Set[java.lang.Throwable]) => {
           failed = failed + 1
           println(s"***ID computation failed for ${ei.toWrappedObjectString}")
@@ -764,28 +762,25 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
             error <- errors
           } println("\tCause: " + error.getMessage)
           println("---------------------------")
-          -\/(errors)
+          false
         },
 
         (id: String @@ OTI_ID) => {
             id2Element
             .get(id)
-            .fold[Set[java.lang.Throwable] \/ Unit]({
+            .fold[Boolean]({
               id2Element.update(id, ei)
-              \/-(())
+              true
             }){ e =>
               if (e == ei)
-                \/-(())
+                true
               else {
                 duplicates = duplicates + 1
-                val message = 
-                  s"*** Duplicate ID: $id\n" +
-                  s"\t-> ${ei.toWrappedObjectString}\n"
-                  s"\t-> ${e.toWrappedObjectString}"
+                println(s"*** Duplicate ID: $id")
+                println(s"\t-> ${ei.toWrappedObjectString}")
+                println(s"\t-> ${e.toWrappedObjectString}")
                 println("---------------------------")
-                println(message)
-                println("---------------------------")
-                -\/(Set(UMLError.umlAdaptationError(message)))
+                false
               }
             }
         }
