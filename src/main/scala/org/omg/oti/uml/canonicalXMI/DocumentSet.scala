@@ -147,14 +147,15 @@ trait DocumentSet[Uml <: UML] {
   (d: SerializableMutableDocument[Uml])
   : Set[java.lang.Throwable] \/ (SerializableImmutableDocument[Uml], DocumentSet[Uml])
 
-  private val element2document = scala.collection.mutable.HashMap[UMLElement[Uml], Option[Document[Uml]]]()
+  private val elementURL2document = new scala.collection.mutable.HashMap[String, Option[Document[Uml]]]()
+  private val elementURL2element = new scala.collection.mutable.HashMap[String, UMLElement[Uml]]()
 
   def lookupDocumentByExtent
   (e: UMLElement[Uml]): Option[Document[Uml]]
   = this.synchronized {
-    element2document
+    elementURL2document
       .getOrElseUpdate(
-        e,
+        TOOL_SPECIFIC_URL.unwrap(e.toolSpecific_url),
         allDocuments.find { d => d.scope == e || d.includes(e) })
   }
 
@@ -166,9 +167,12 @@ trait DocumentSet[Uml <: UML] {
   def computeElement2DocumentMap
   : Map[UMLElement[Uml], Document[Uml]]
   = this.synchronized {
-    element2document
+    elementURL2document
       .flatMap {
-        case (e, Some(d)) => Some(e -> d)
+        case (url, Some(d)) =>
+          elementURL2element
+            .get(url)
+            .map { e => e -> d }
         case _ => None
       }
       .toMap
@@ -257,7 +261,7 @@ trait DocumentSet[Uml <: UML] {
     val t0: scala.Long = java.lang.System.currentTimeMillis()
     var time: scala.Long = t0
 
-    val documentSize = scala.collection.mutable.HashMap[Document[Uml], Int]()
+    val documentSize = scala.collection.mutable.HashMap[String @@ OTI_URL, Int]()
     var count: Int = 0
     var tcount: Int = 0
     // add each document as a node in the graph
@@ -271,11 +275,13 @@ trait DocumentSet[Uml <: UML] {
       g += d
       val prev = count
       d.extent.foreach { e =>
-        element2document += e -> Some(d)
+        val eurl = TOOL_SPECIFIC_URL.unwrap(e.toolSpecific_url)
+        elementURL2document += eurl -> Some(d)
+        elementURL2element += eurl -> e
         count += 1
       }
       val size = count - prev
-      documentSize += d -> size
+      documentSize += d.info.documentURL -> size
 
       val now = java.lang.System.currentTimeMillis()
       val duration = prettyFiniteDuration(now - time, java.util.concurrent.TimeUnit.MILLISECONDS)
@@ -298,30 +304,38 @@ trait DocumentSet[Uml <: UML] {
     val unresolvedElementCrossReferences =
       scala.collection.mutable.Queue[UnresolvedElementCrossReference[Uml]]()
 
+    val documentURL2document
+    : Map[String @@ OTI_URL, Document[Uml]]
+    = allDocuments
+      .map { d =>
+      d.info.documentURL -> d
+      }
+      .toMap
+
     val documentPairs2RelationTriples
-    : Map[Document[Uml], Map[Document[Uml], scala.collection.mutable.Queue[RelationTriple[Uml]]]]
+    : Map[String @@ OTI_URL, Map[String @@ OTI_URL, scala.collection.mutable.Queue[RelationTriple[Uml]]]]
     = allDocuments
       .map { di =>
 
         val diMap
-        : Map[Document[Uml], scala.collection.mutable.Queue[RelationTriple[Uml]]]
+        : Map[String @@ OTI_URL, scala.collection.mutable.Queue[RelationTriple[Uml]]]
         = allDocuments
           .flatMap { dj =>
             if (di != dj)
-              Some(dj -> scala.collection.mutable.Queue[RelationTriple[Uml]]())
+              Some(dj.info.documentURL -> scala.collection.mutable.Queue[RelationTriple[Uml]]())
             else
               None
           }
           .toMap
 
-        di -> diMap
+        di.info.documentURL -> diMap
       }
       .toMap
 
     def getDocumentHyperedge
     (di: Document[Uml], dj: Document[Uml])
     : scala.collection.mutable.Queue[RelationTriple[Uml]]
-    = documentPairs2RelationTriples(di)(dj)
+    = documentPairs2RelationTriples(di.info.documentURL)(dj.info.documentURL)
 
     val errors = scala.collection.mutable.HashSet[java.lang.Throwable]()
 
@@ -370,7 +384,7 @@ trait DocumentSet[Uml <: UML] {
 
       System.out.println(s"# ($remaining documents left) => Resolving ${d.documentURL} ")
 
-      val size = documentSize(d)
+      val size = documentSize(d.info.documentURL)
       val chunk = {
         val c10 = size / 10
         val c100 = size / 100
@@ -434,7 +448,7 @@ trait DocumentSet[Uml <: UML] {
           hyperEdgeCount = hyperEdgeCount + 1
           // For each inter-document edge: dFrom ~> dTo, record all the RelationTripes(subject, object)
           // where subject is in dFrom and object is in dTo as the justification for the edge.
-          g += DocumentEdge(dFrom, dTo, triples.to[Vector])
+          g += DocumentEdge(documentURL2document(dFrom), documentURL2document(dTo), triples.to[Vector])
         }
       }
     }
