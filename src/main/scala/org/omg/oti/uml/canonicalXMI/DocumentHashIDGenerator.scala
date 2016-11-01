@@ -744,7 +744,6 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
 
   def checkIDs(): Boolean = {
     val id2Element = scala.collection.mutable.HashMap[String @@ OTI_ID, UMLElement[Uml]]()
-    var res: Boolean = true
     var duplicates: Integer = 0
     var failed: Integer = 0
     println("\n>>> IDs Checking...")

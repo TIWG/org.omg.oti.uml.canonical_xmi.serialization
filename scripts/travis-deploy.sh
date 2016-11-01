@@ -4,7 +4,7 @@ set -ev
 
 # Deploy if TRAVIS_SECURE_ENV_VARS is true and TRAVIS_TAG is set
 
-[ ${TRAVIS_SECURE_ENV_VARS} == false ] && exit 0;
+[ ! ${TRAVIS_SECURE_ENV_VARS} ] && exit 0;
 [ -z "${TRAVIS_TAG}" ] && exit 0;
 
 openssl aes-256-cbc -pass pass:$ENCRYPTION_PASSWORD -in secring.gpg.enc -out local.secring.gpg -d

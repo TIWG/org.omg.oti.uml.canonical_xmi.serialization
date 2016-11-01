@@ -29,7 +29,7 @@ import org.omg.oti.uml.characteristics.OTICharacteristicsProvider
 import org.omg.oti.uml.read.api._
 import org.omg.oti.uml.xmi._
 
-import scala.{Boolean, None, Option, Some, StringContext, Unit}
+import scala.{None, Option, Some, StringContext, Unit}
 import scala.Predef.{String, require}
 import scala.collection.immutable._
 import scala.Predef.{Map => _, Set => _, _}
@@ -521,7 +521,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                     Iterable(is, s),
                     "crule1a error: Slot must have a defining StructuralFeature")))
                 }{ sf =>
-                  if (sf.upper == 1)
+                  if (sf.upper.intValue() == 1)
                     \/-("")
                   else {
                     val slotValues = s.value.toList
@@ -728,7 +728,6 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
   : Set[java.lang.Throwable] \/ Unit
   = {
     val id2Element = scala.collection.mutable.HashMap[String @@ OTI_ID, UMLElement[Uml]]()
-    var res: Boolean = true
     var duplicates: Integer = 0
     var failed: Integer = 0
     println("\n>>> IDs Checking...")
@@ -762,7 +761,7 @@ trait DocumentIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                 duplicates = duplicates + 1
                 val message = 
                   s"*** Duplicate ID: $id\n" +
-                  s"\t-> ${ei.toWrappedObjectString}\n"
+                  s"\t-> ${ei.toWrappedObjectString}\n" +
                   s"\t-> ${e.toWrappedObjectString}"
                 println("---------------------------")
                 println(message)
