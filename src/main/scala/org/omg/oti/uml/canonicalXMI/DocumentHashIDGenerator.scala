@@ -530,7 +530,7 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                     Iterable(is, s),
                     "crule1a error: Slot must have a defining StructuralFeature")))
                 }{ sf =>
-                  if (sf.upper == 1)
+                  if (sf.upper.intValue() == 1)
                     \/-("")
                   else {
                     val slotValues = s.value.toList
