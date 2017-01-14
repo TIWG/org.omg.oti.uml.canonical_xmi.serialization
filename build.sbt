@@ -32,7 +32,7 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
       import Path.{flat, relativeTo}
       val base = (sourceManaged in Compile).value
       val srcs = (managedSources in Compile).value
-      srcs x (relativeTo(base) | flat)
+      srcs pair (relativeTo(base) | flat)
     },
 
     projectID := {
@@ -49,14 +49,20 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
     resolvers += Resolver.bintrayRepo("jpl-imce", "gov.nasa.jpl.imce"),
     resolvers += Resolver.bintrayRepo("tiwg", "org.omg.tiwg"),
 
+    resolvers += "Artima Maven Repository" at "http://repo.artima.com/releases",
+    scalacOptions in (Compile, compile) += s"-P:artima-supersafe:config-file:${baseDirectory.value}/project/supersafe.cfg",
+    scalacOptions in (Test, compile) += s"-P:artima-supersafe:config-file:${baseDirectory.value}/project/supersafe.cfg",
+    scalacOptions in (Compile, doc) += "-Xplugin-disable:artima-supersafe",
+    scalacOptions in (Test, doc) += "-Xplugin-disable:artima-supersafe",
+
     libraryDependencies ++= Seq(
       "gov.nasa.jpl.imce" %% "imce.third_party.scala_graph_libraries"
         % Versions_scala_graph_libraries.version artifacts
-        Artifact("imce.third_party.scala_graph_libraries", "zip", "zip", Some("resource"), Seq(), None, Map()),
+        Artifact("imce.third_party.scala_graph_libraries", "zip", "zip", "resource"),
 
       "gov.nasa.jpl.imce" %% "imce.third_party.owlapi_libraries"
         % Versions_owlapi_libraries.version artifacts
-        Artifact("imce.third_party.owlapi_libraries", "zip", "zip", Some("resource"), Seq(), None, Map())
+        Artifact("imce.third_party.owlapi_libraries", "zip", "zip", "resource")
     ),
 
     extractArchives := {}
@@ -68,7 +74,7 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
     Seq(
       "org.omg.tiwg" %% "org.omg.oti.uml.core"
         % Versions_oti_uml_core.version % "compile" withSources() withJavadoc() artifacts
-        Artifact("org.omg.oti.uml.core", "zip", "zip", Some("resource"), Seq(), None, Map())
+        Artifact("org.omg.oti.uml.core", "zip", "zip", "resource")
     )
   )
 

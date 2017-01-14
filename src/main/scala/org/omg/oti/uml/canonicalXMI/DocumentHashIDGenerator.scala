@@ -175,7 +175,7 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           .illegalElementError[Uml, UMLElement[Uml]]("Unknown document for element reference to", Iterable(to)))
         .left
       }{
-        case db2: Document[Uml] with BuiltInDocument =>
+        case db2: BuiltInImmutableDocument[Uml] =>
           require(d1 != db2)
           val builtIn_d2_id = TOOL_SPECIFIC_ID.unwrap(to.toolSpecific_id)
           // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
@@ -197,6 +197,30 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
           } yield IDGenerator.xmlSafeID(fragment)
 
           bid
+
+        case db2: BuiltInMutableDocument[Uml] =>
+          require(d1 != db2)
+          val builtIn_d2_id = TOOL_SPECIFIC_ID.unwrap(to.toolSpecific_id)
+          // Based on the built-in 'to' element ID, construct the built-in URI for the 'to' element.
+          val bid = for {
+            builtInURI <- documentOps.getExternalDocumentURL(db2.documentURL)
+
+            builtInURITo =
+            builtInURI
+              .resolve("#" + builtIn_d2_id)
+              .toString
+
+            // use the builtInURIMapper to convert the built-in URI of the 'to' element into an OMG URI
+            mappedURITo <- documentSet.builtInURIMapper.resolve(builtInURITo).map(_.getOrElse(builtInURITo))
+            fragmentIndex = mappedURITo.lastIndexOf('#')
+            _ = require(fragmentIndex > 0)
+
+            // It's not needed to add the prefix since it's already included in the computed ID
+            fragment = IDGenerator.xmlSafeID(mappedURITo.substring(fragmentIndex + 1))
+          } yield IDGenerator.xmlSafeID(fragment)
+
+          bid
+
 
         case _: Document[Uml] with SerializableDocument =>
           getMappedOrReferencedElement(to)
@@ -624,7 +648,7 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                   val sourceID =
                     element2document(relSource) match {
                       case Some(d: Document[Uml] with BuiltInDocument) =>
-                        OTI_ID(IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + sid))
+                        IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + sid)
                       case _ =>
                         sid
                     }
@@ -632,7 +656,7 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
                   val targetID =
                     element2document(relTarget) match {
                       case Some(d: Document[Uml] with BuiltInDocument) =>
-                        OTI_ID(IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + tid))
+                        IDGenerator.xmlSafeID(OTI_URI.unwrap(d.info.packageURI) + "." + tid)
                       case _ =>
                         tid
                     }
@@ -743,7 +767,12 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
     }
 
   def checkIDs(): Boolean = {
-    val id2Element = scala.collection.mutable.HashMap[String @@ OTI_ID, UMLElement[Uml]]()
+    // supersafe 1.1.1 thinks that the inferred type is:
+    // scala.collection.mutable.HashMap[
+    // Object{type Tag = org.omg.oti.json.common.OTIPrimitiveTypes.OTI_ID; type Self = String},
+    // org.omg.oti.uml.read.api.UMLElement[Uml]]
+    //val id2Element = scala.collection.mutable.HashMap[String @@ OTI_ID, UMLElement[Uml]]()
+    val id2Element = scala.collection.mutable.HashMap[String, UMLElement[Uml]]()
     var duplicates: Integer = 0
     var failed: Integer = 0
     println("\n>>> IDs Checking...")
@@ -765,23 +794,24 @@ trait DocumentHashIDGenerator[Uml <: UML] extends IDGenerator[Uml] {
         },
 
         (id: String @@ OTI_ID) => {
-            id2Element
-            .get(id)
+          val sid = OTI_ID.unwrap(id)
+          id2Element
+            .get(sid)
             .fold[Boolean]({
-              id2Element.update(id, ei)
+            id2Element.update(sid, ei)
+            true
+          }) { e =>
+            if (e == ei)
               true
-            }){ e =>
-              if (e == ei)
-                true
-              else {
-                duplicates = duplicates + 1
-                println(s"*** Duplicate ID: $id")
-                println(s"\t-> ${ei.toWrappedObjectString}")
-                println(s"\t-> ${e.toWrappedObjectString}")
-                println("---------------------------")
-                false
-              }
+            else {
+              duplicates = duplicates + 1
+              println(s"*** Duplicate ID: $sid")
+              println(s"\t-> ${ei.toWrappedObjectString}")
+              println(s"\t-> ${e.toWrappedObjectString}")
+              println("---------------------------")
+              false
             }
+          }
         }
       )
     }
