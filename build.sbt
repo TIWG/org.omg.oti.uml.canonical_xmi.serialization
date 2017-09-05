@@ -16,8 +16,6 @@ resolvers ++= {
 
 lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
   .enablePlugins(IMCEGitPlugin)
-  .enablePlugins(IMCEReleasePlugin)
-  .settings(IMCEReleasePlugin.packageReleaseProcessSettings)
   .settings(dynamicScriptsResourceSettings("org.omg.oti.uml.canonical_xmi.serialization"))
   .settings(IMCEPlugin.strictScalacFatalWarningsSettings)
   .settings(
@@ -43,9 +41,7 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
     },
 
     git.baseVersion := Versions.version,
-
-    extractArchives := {},
-
+    
     resolvers += Resolver.bintrayRepo("jpl-imce", "gov.nasa.jpl.imce"),
     resolvers += Resolver.bintrayRepo("tiwg", "org.omg.tiwg"),
 
@@ -63,9 +59,7 @@ lazy val core = Project("oti-uml-canonical_xmi-serialization", file("."))
       "gov.nasa.jpl.imce" %% "imce.third_party.owlapi_libraries"
         % Versions_owlapi_libraries.version artifacts
         Artifact("imce.third_party.owlapi_libraries", "zip", "zip", "resource")
-    ),
-
-    extractArchives := {}
+    )
 
   )
   .dependsOnSourceProjectOrLibraryArtifacts(
